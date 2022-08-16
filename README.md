@@ -9,6 +9,7 @@ This data logger is made for a UAV and it's based on M5Stack (Core 2 model). The
 - RTC setup
 - Servo PID controller
 - ADC reads
+- RTC time can be defined with touch buttons
 
 ## ArduinoIDE
 The code is ArduinoIDE compatible, after importing ESP32Time, ESP32Servo, and M5Core2 libraries as explained on the M5Stack website.
