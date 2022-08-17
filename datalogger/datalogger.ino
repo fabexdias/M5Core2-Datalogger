@@ -250,7 +250,7 @@ void loop() {
   Time = millis();
  
   if((Time - Time_prev) > 200){
-    //Serial2.write('A');
+    Serial2.write('A');
     
     PID_error = Tempi - Temps; 
     PID_p = 1.1 * PID_error;
