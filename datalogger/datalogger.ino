@@ -267,10 +267,7 @@ void loop() {
       PID_value = 15;
       if(PID_i < 0){PID_i = 0;}
     }
- 
-    str = "Degrees: ";
-    str += String((int) round(PID_value-15));
-    M5.Lcd.drawString(str, 20, 25, 2);  
+    
     myServo.write(map(PID_value, 15, 105, 61, 151));
   }
 }
