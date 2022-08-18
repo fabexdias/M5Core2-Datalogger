@@ -54,36 +54,37 @@ void Scroll(Event& e) {
 void DateEvent(Event& e) {
   M5.Rtc.GetDate(&RTCDate);
   M5.Rtc.GetTime(&RTCTime);    
-  int aux[6] = {RTCTime.Hours, RTCTime.Minutes, RTCTime.Seconds, RTCDate.Year, RTCDate.Month, RTCDate.Date};
-
+  int aux_i[6] = {RTCTime.Hours, RTCTime.Minutes, RTCTime.Seconds, RTCDate.Year, RTCDate.Month, RTCDate.Date};
+  float aux_f[3] = {K_p, K_i, K_d};
+  
   if(menu == 3){
     if(M5.BtnC.pressedFor(700)){
-      aux[0] = K_p + 0.1;
-      aux[1] = K_i + 0.1;
-      aux[2] = K_d + 0.1;
+      aux_f[0] = K_p + 0.1;
+      aux_f[1] = K_i + 0.1;
+      aux_f[2] = K_d + 0.1;
     }else if(M5.BtnB.pressedFor(700)){
-      aux[0] = K_p - 0.1;
-      aux[1] = K_i - 0.1;
-      aux[2] = K_d - 0.1;
-    }else if(M5.BtnC.wasPressed()){
-      aux[0] = K_p + 0.01;
-      aux[1] = K_i + 0.01;
-      aux[2] = K_d + 0.01;
-    }else if(M5.BtnB.wasPressed()){
-      aux[0] = K_p - 0.01;
-      aux[1] = K_i - 0.01;
-      aux[2] = K_d - 0.01;
+      aux_f[0] = K_p - 0.1;
+      aux_f[1] = K_i - 0.1;
+      aux_f[2] = K_d - 0.1;
+    }else if(M5.BtnC.wasPressed() && !M5.BtnC.isPressed()){
+      aux_f[0] = K_p + 0.01;
+      aux_f[1] = K_i + 0.01;
+      aux_f[2] = K_d + 0.01;
+    }else if(M5.BtnB.wasPressed() && !M5.BtnB.isPressed()){
+      aux_f[0] = K_p - 0.01;
+      aux_f[1] = K_i - 0.01;
+      aux_f[2] = K_d - 0.01;
     }
     
     switch(select_K){
       case 0:
-        K_p = aux[0];
+        K_p = aux_f[0];
         break;
       case 1:
-        K_i = aux[1];
+        K_i = aux_f[1];
         break;
       case 2:
-        K_d = aux[2];
+        K_d = aux_f[2];
         break;    
       default:
         break;
@@ -93,39 +94,39 @@ void DateEvent(Event& e) {
   if(menu == 2){
     M5.Lcd.fillScreen(BLACK);
     if(M5.BtnC.wasPressed()){
-      aux[3] = Limits(aux[3] + 1, 1000000, 0);
-      aux[4] = Limits(aux[4] + 1, 12, 1);
-      aux[5] = Limits(aux[5] + 1, 31, 1);
-      aux[0] = Limits(aux[0] + 1, 23, 0);
-      aux[1] = Limits(aux[1] + 1, 59, 0);
-      aux[2] = Limits(aux[2] + 1, 59, 0);  
+      aux_i[3] = Limits(aux_i[3] + 1, 1000000, 0);
+      aux_i[4] = Limits(aux_i[4] + 1, 12, 1);
+      aux_i[5] = Limits(aux_i[5] + 1, 31, 1);
+      aux_i[0] = Limits(aux_i[0] + 1, 23, 0);
+      aux_i[1] = Limits(aux_i[1] + 1, 59, 0);
+      aux_i[2] = Limits(aux_i[2] + 1, 59, 0);  
     }else if(M5.BtnB.wasPressed()){
-      aux[3] = Limits(aux[3] - 1, 1000000, 0);
-      aux[4] = Limits(aux[4] - 1, 12, 1);
-      aux[5] = Limits(aux[5] - 1, 31, 1);
-      aux[0] = Limits(aux[0] - 1, 23, 0);
-      aux[1] = Limits(aux[1] - 1, 59, 0);
-      aux[2] = Limits(aux[2] - 1, 59, 0);    
+      aux_i[3] = Limits(aux_i[3] - 1, 1000000, 0);
+      aux_i[4] = Limits(aux_i[4] - 1, 12, 1);
+      aux_i[5] = Limits(aux_i[5] - 1, 31, 1);
+      aux_i[0] = Limits(aux_i[0] - 1, 23, 0);
+      aux_i[1] = Limits(aux_i[1] - 1, 59, 0);
+      aux_i[2] = Limits(aux_i[2] - 1, 59, 0);    
     }
   
     switch(select_time){
       case 3:
-        RTCDate.Year = aux[3];
+        RTCDate.Year = aux_i[3];
         break;
       case 4:
-        RTCDate.Month = aux[4];
+        RTCDate.Month = aux_i[4];
         break;
       case 5:
-        RTCDate.Date = aux[5];
+        RTCDate.Date = aux_i[5];
         break;
       case 0:
-        RTCTime.Hours = aux[0];
+        RTCTime.Hours = aux_i[0];
         break;
       case 1:
-        RTCTime.Minutes = aux[1];
+        RTCTime.Minutes = aux_i[1];
         break;
       case 2:
-        RTCTime.Seconds = aux[2];
+        RTCTime.Seconds = aux_i[2];
         break;    
       default:
         break;
@@ -234,7 +235,7 @@ void menu_3(){
   str = "K_d: ";
   str += String(K_d); 
   M5.Lcd.drawString(str, 0, 80, 4);  
-  M5.Lcd.drawString(K_str[select_time], 40, 120, 4);   
+  M5.Lcd.drawString(K_str[select_K], 40, 120, 4);   
 }
 
 void loop() {
