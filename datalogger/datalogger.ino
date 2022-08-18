@@ -8,7 +8,7 @@
 #include <math.h>
 #define MEAN_SIZE 200
 
-extern uint8_t teste[];
+extern uint8_t logo[];
 File myFile;
 Servo myServo;
 size_t bytesRecieved;
@@ -144,7 +144,7 @@ void setup(){
     eeprom_ok = true;
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
-  M5.Lcd.drawJpg(teste, 1847897);
+  M5.Lcd.drawJpg(logo, 11745);
   // Button Config
   M5.BtnA.addHandler(Scroll, E_TOUCH);
   M5.BtnB.addHandler(DateEvent, E_TOUCH);
