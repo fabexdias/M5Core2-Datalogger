@@ -13,8 +13,8 @@ File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name, aux_str;
-bool eeprom_ok = false, sd_ok = false, refreshed = false;
+String str, file_name, aux_str = "Test";
+bool eeprom_ok = false, sd_ok = false;
 int i = 0, j = 0, selecting = 0, menu = 0, addr = 0;
 
 float Motor_hours = 0;
@@ -82,7 +82,7 @@ void DateEvent(Event& e) {
         break;
       case 4:
         RTCDate.Month = auxMonth;
-        aux_str = "Mouth";
+        aux_str = "Month";
         break;
       case 5:
         RTCDate.Date = auxDate;
@@ -174,30 +174,27 @@ void menu_2(){
   M5.Rtc.GetDate(&RTCDate);
   M5.Rtc.GetTime(&RTCTime);
   
-  if(((RTCTime.Seconds == 0) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0)) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0) && (RTCTime.Hours == 0))) && !refreshed){
-    refreshed = true;
-    M5.Lcd.drawString("                          ", 0, 80, 4);
-    M5.Lcd.drawString("                          ", 0, 120, 4);  
-  }else if(!(RTCTime.Seconds == 0)){
-    refreshed = false;
-  } 
-  
   str = "Hour: ";
+  if(0 <= RTCTime.Hours && RTCTime.Hours < 10){str += "0";}
   str += String(RTCTime.Hours);
   str += "-";
+  if(0 <= RTCTime.Minutes && RTCTime.Minutes < 10){str += "0";}  
   str += String(RTCTime.Minutes);
   str += "-";
+  if(0 <= RTCTime.Seconds && RTCTime.Seconds < 10){str += "0";}  
   str += String(RTCTime.Seconds);
   M5.Lcd.drawString(str, 0, 40, 4); 
   str = "Date: ";
   str += String(RTCDate.Year);      
   str += "-";
+  if(0 <= RTCDate.Month && RTCDate.Month < 10){str += "0";}  
   str += String(RTCDate.Month);   
   str += "-";
+  if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
   str += String(RTCDate.Date); 
   M5.Lcd.drawString(str, 0, 0, 4); 
   
-  M5.Lcd.drawString(aux_str, 30, 160, 5);
+  M5.Lcd.drawString(aux_str, 0, 120, 8);
 }
 
 void loop() {
