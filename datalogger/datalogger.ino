@@ -5,36 +5,26 @@
 #include <ESP32PWM.h>
 #include <analogWrite.h>
 #include <math.h>
+#define MEAN_SIZE 200
 
 File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
 String str, file_name;
-bool sd_ok = false;
-<<<<<<< HEAD
-int i = 0, aux = 0, j = 0;
-=======
-int i = 0, selecting = 0;
->>>>>>> 47bae5980321c373a687110138e9978c24c98bda
+bool sd_ok = false, refreshed = false;
+int i = 0, j = 0, selecting = 0, menu = 0;
 
-float Temp_mean = 0;
+float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
 float Time_now = 0, Time_prev = 0, Time = 0;
-<<<<<<< HEAD
-float Temp_array[100];
-
-ButtonColors on_clrs  = {BLACK, BLACK, WHITE};
-ButtonColors off_clrs = {BLACK, WHITE, WHITE};
-Button A(220, 30, 80, 80, false ,"UP", off_clrs, on_clrs, MC_DATUM);
-Button B(220, 150, 80, 80, false ,"DOWN", off_clrs, on_clrs, MC_DATUM);
-=======
->>>>>>> 47bae5980321c373a687110138e9978c24c98bda
  
 RTC_TimeTypeDef RTCTime;
 RTC_DateTypeDef RTCDate;
+
+Gesture swipeLeft("swipe left", 160, DIR_LEFT, 30, true);
 
 void Scroll(Event& e) {
   if(++selecting >= 6){selecting = 0;}
@@ -45,6 +35,13 @@ int Limits(int Value, int SupLimit, int InfLimit){
   if(Value > SupLimit){return InfLimit;}
   if(Value < InfLimit){return SupLimit;}
   return Value;
+}
+
+void Swiped(Event& e) {
+  str = "Menu ";
+  str += String(menu++);
+  if(menu > 4){menu = 0;}
+  M5.Lcd.drawString(str, 0, 160, 4);
 }
  
 void DateEvent(Event& e) {
@@ -134,27 +131,15 @@ void setup(){
   
   // Button Config
   M5.BtnA.addHandler(Scroll, E_TOUCH);
-<<<<<<< HEAD
-  M5.BtnB.addHandler(DownDate, E_TOUCH);
-  M5.BtnC.addHandler(UpDate, E_TOUCH);  
-  A.addHandler(UpAndDown, E_TOUCH);
-  B.addHandler(UpAndDown, E_TOUCH);  
-  M5.Buttons.draw();
-  M5.Lcd.setTextSize(1);
-  
-  for(int index_2 = 0; index_2 <= 99;index_2++){
-    Temp_array[index_2] = 0;
-  }
-=======
   M5.BtnB.addHandler(DateEvent, E_TOUCH);
   M5.BtnC.addHandler(DateEvent, E_TOUCH);
->>>>>>> 47bae5980321c373a687110138e9978c24c98bda
+  swipeLeft.addHandler(Swiped, E_GESTURE); 
+     
+  Temp_array[MEAN_SIZE - 1] = 0;
 }
  
 void loop() {
   M5.update();
-<<<<<<< HEAD
-=======
 
   top_info();
   
@@ -181,17 +166,11 @@ void writeSD(){
 }
 
 void top_info(){
->>>>>>> 47bae5980321c373a687110138e9978c24c98bda
-  Temps = ((1.1*analogRead(35)/4095*3.5481)-0.5)*100; // Using MCP9700 as temperature sensor
-  Temps = mean_temp(Temps);
+  Temps = mean_temp(((1.1*analogRead(35)/4095*3.5481)-0.5)*100);
   str = "Read temp: ";
-<<<<<<< HEAD
-  str += String((Temps));
-  M5.Lcd.drawString(str, 20, 0, 2);
-=======
-  str += String((int) round(Temps));
+  str += String(Temps);
   M5.Lcd.drawString(str, 0, 0, 4);
->>>>>>> 47bae5980321c373a687110138e9978c24c98bda
+
   str = "Ideal temp: ";
   str += String(Tempi);  
   M5.Lcd.drawString(str, 0, 40, 4);
@@ -213,8 +192,11 @@ void top_info(){
   str += String(RTCDate.Date); 
   M5.Lcd.drawString(str, 0, 120, 4); 
 
-  if((RTCTime.Seconds == 0) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0)) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0) && (RTCTime.Hours == 0))){
+  if(((RTCTime.Seconds == 0) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0)) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0) && (RTCTime.Hours == 0))) && !refreshed){
+    refreshed = true;
     M5.Lcd.fillScreen(BLACK);
+  }else if(!(RTCTime.Seconds == 0)){
+    refreshed = false;
   }
 }
 
@@ -302,29 +284,13 @@ void print_telemetry(int aux){
     myFile.print(str);    
   }  
 }
-<<<<<<< HEAD
+
 float mean_temp(float Temps){
+  float Temp_mean = 0;
   Temp_array[j] = Temps;
-  if(j == 99){
-    j=0;}
-  if (Temp_array[j]==0){
-    j++;
-    return Temp_array[j-2];
-    }
-    Temp_mean = 0;
-  for(int index = 0;index <= 99;index ++){
-    Temp_mean += (Temp_array[index])/100;
-  }
-  j++;
+  if(++j == MEAN_SIZE){j=0;}
+  if(Temp_array[MEAN_SIZE-1]==0){return Temp_array[j-1];}
+  for(i = 0; i <= MEAN_SIZE; i++){Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));}
+  
   return Temp_mean;
-  }
-/* {39}{2E}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{93}{93}{01}{01}{03}{E8}{03}{F5}{03}{3F}{03}{0B}{00}{A4}
-   {00}{01}{00}{93}{00}{93}{00}{00}{03}{E8}{03}{E8}{03}{D1}{00}{64}{00}{00}{00}{64}{03}{E8}{00}{64}{00}{64}
-   {00}{64}{00}{00}{00}{00}{00}{00}{00}{00}{00}{0F}{00}{00}{00}{A4}{00}{64}{00}{00}{00}{64}{00}{00}{00}{00}
-   {00}{00}{00}{00}{01}{DC}{00}{00}{00}{70}{00}{A4}{00}{A4}{03}{F6}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}
-   {00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}
-   {00}{21}{00}{00}{00}{00}{00}{64}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}
-   {00}{00}{00}{00}{00}{A4}{00}{A4}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{03}{25}{00}{00}{00}{00}{00}{00}
-   {00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{C3}{00}{00}{00}{00}{00} */
-=======
->>>>>>> 47bae5980321c373a687110138e9978c24c98bda
+}
