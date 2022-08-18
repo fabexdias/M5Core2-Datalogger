@@ -25,11 +25,6 @@ RTC_TimeTypeDef RTCTime;
 RTC_DateTypeDef RTCDate;
 
 Gesture swipeLeft("swipe left", 160, DIR_LEFT, 30, true);
-
-void Scroll(Event& e) {
-  if(++selecting >= 6){selecting = 0;}
-  M5.Lcd.fillScreen(BLACK);
-} 
  
 int Limits(int Value, int SupLimit, int InfLimit){
   if(Value > SupLimit){return InfLimit;}
@@ -37,12 +32,17 @@ int Limits(int Value, int SupLimit, int InfLimit){
   return Value;
 }
 
-void Swiped(Event& e) {
-  str = "Menu ";
-  str += String(menu++);
-  if(menu > 4){menu = 0;}
-  M5.Lcd.drawString(str, 0, 160, 4);
+void Swiped(Event& e){
+  if(++menu > 4){menu = 0;}
+  M5.Lcd.fillScreen(BLACK);
 }
+
+void Scroll(Event& e) {
+  if(menu == 0){
+    if(++selecting >= 6){selecting = 0;}
+    M5.Lcd.fillScreen(BLACK);
+  }
+} 
  
 void DateEvent(Event& e) {
   M5.Rtc.GetDate(&RTCDate);
@@ -53,49 +53,51 @@ void DateEvent(Event& e) {
   int auxDate = RTCDate.Date;
   int auxMinutes = RTCTime.Minutes;
   int auxSeconds = RTCTime.Seconds;
-  M5.Lcd.fillScreen(BLACK);
 
-  if(M5.BtnC.wasPressed()){
-    auxYear = Limits(auxYear + 1, 1000000, 0);
-    auxMonth = Limits(auxMonth + 1, 12, 1);
-    auxDate = Limits(auxDate + 1, 31, 1);
-    auxHours = Limits(auxHours + 1, 23, 0);
-    auxMinutes = Limits(auxMinutes + 1, 59, 0);
-    auxSeconds = Limits(auxSeconds + 1, 59, 0);  
-  }else if(M5.BtnB.wasPressed()){
-    auxYear = Limits(auxYear - 1, 1000000, 0);
-    auxMonth = Limits(auxMonth - 1, 12, 1);
-    auxDate = Limits(auxDate - 1, 31, 1);
-    auxHours = Limits(auxHours - 1, 23, 0);
-    auxMinutes = Limits(auxMinutes - 1, 59, 0);
-    auxSeconds = Limits(auxSeconds - 1, 59, 0);    
-  }
-
-  switch(selecting){
-    case 3:
-      RTCDate.Year = auxYear;
-      break;
-    case 4:
-      RTCDate.Month = auxMonth;
-      break;
-    case 5:
-      RTCDate.Date = auxDate;
-      break;
-    case 0:
-      RTCTime.Hours = auxHours;
-      break;
-    case 1:
-      RTCTime.Minutes = auxMinutes;
-      break;
-    case 2:
-      RTCTime.Seconds = auxSeconds;
-      break;    
-    default:
-      break;
-  }
+  if(menu == 0){
+    M5.Lcd.fillScreen(BLACK);
+    if(M5.BtnC.wasPressed()){
+      auxYear = Limits(auxYear + 1, 1000000, 0);
+      auxMonth = Limits(auxMonth + 1, 12, 1);
+      auxDate = Limits(auxDate + 1, 31, 1);
+      auxHours = Limits(auxHours + 1, 23, 0);
+      auxMinutes = Limits(auxMinutes + 1, 59, 0);
+      auxSeconds = Limits(auxSeconds + 1, 59, 0);  
+    }else if(M5.BtnB.wasPressed()){
+      auxYear = Limits(auxYear - 1, 1000000, 0);
+      auxMonth = Limits(auxMonth - 1, 12, 1);
+      auxDate = Limits(auxDate - 1, 31, 1);
+      auxHours = Limits(auxHours - 1, 23, 0);
+      auxMinutes = Limits(auxMinutes - 1, 59, 0);
+      auxSeconds = Limits(auxSeconds - 1, 59, 0);    
+    }
   
-  M5.Rtc.SetDate(&RTCDate);
-  M5.Rtc.SetTime(&RTCTime);
+    switch(selecting){
+      case 3:
+        RTCDate.Year = auxYear;
+        break;
+      case 4:
+        RTCDate.Month = auxMonth;
+        break;
+      case 5:
+        RTCDate.Date = auxDate;
+        break;
+      case 0:
+        RTCTime.Hours = auxHours;
+        break;
+      case 1:
+        RTCTime.Minutes = auxMinutes;
+        break;
+      case 2:
+        RTCTime.Seconds = auxSeconds;
+        break;    
+      default:
+        break;
+    }
+    
+    M5.Rtc.SetDate(&RTCDate);
+    M5.Rtc.SetTime(&RTCTime);
+  }
 }
 
 void setup(){
@@ -137,36 +139,8 @@ void setup(){
      
   Temp_array[MEAN_SIZE - 1] = 0;
 }
- 
-void loop() {
-  M5.update();
 
-  top_info();
-  
-  if(Serial2.available() > 0){               
-    bytesRecieved = Serial2.readBytes(Telemetry,212);
-    if(bytesRecieved == 212){
-      print_telemetry(0); 
-      writeSD();
-    }
-  }
-  
-  timed();
-}
- 
-void writeSD(){
-  if (sd_ok == true) {
-    myFile = SD.open(file_name, FILE_APPEND);
-    M5.Rtc.GetDate(&RTCDate);
-    M5.Rtc.GetTime(&RTCTime);
-    print_telemetry(1);
-    myFile.printf(" Hour: %2d-%2d-%2d Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.close(); 
-  }
-}
-
-void top_info(){
-  Temps = mean_temp(((1.1*analogRead(35)/4095*3.5481)-0.5)*100);
+void menu_0(){
   str = "Read temp: ";
   str += String(Temps);
   M5.Lcd.drawString(str, 0, 0, 4);
@@ -197,6 +171,52 @@ void top_info(){
     M5.Lcd.fillScreen(BLACK);
   }else if(!(RTCTime.Seconds == 0)){
     refreshed = false;
+  }
+}
+
+void menu_1(){
+  if(bytesRecieved == 212){print_telemetry(0);} 
+}
+
+
+void loop() {
+  M5.update();
+  
+  Temps = mean_temp(((1.1*analogRead(35)/4095*3.5481)-0.5)*100);
+
+  if(Serial2.available() > 0){               
+    bytesRecieved = Serial2.readBytes(Telemetry,212);
+    if(bytesRecieved == 212){
+      writeSD();
+    }
+  }
+
+  str = "Menu ";
+  str += String(menu); 
+  M5.Lcd.drawString(str, 220, 0, 4);
+  
+  switch(menu){
+    case 0:
+      menu_0();
+      break;
+    case 1:
+      menu_1();
+      break;      
+    default:
+      break;  
+  }
+  
+  timed();
+}
+ 
+void writeSD(){
+  if (sd_ok == true) {
+    myFile = SD.open(file_name, FILE_APPEND);
+    M5.Rtc.GetDate(&RTCDate);
+    M5.Rtc.GetTime(&RTCTime);
+    print_telemetry(1);
+    myFile.printf(" Hour: %2d-%2d-%2d Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.close(); 
   }
 }
 
@@ -271,7 +291,7 @@ void print_telemetry(int aux){
   str = "TPS = ";
   str += String(Telemetry[24]*256 + Telemetry[25]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 175, 2);
+    M5.Lcd.drawString(str, 20, 25, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }
@@ -279,7 +299,7 @@ void print_telemetry(int aux){
   str = "Voltage = ";
   str += String(Telemetry[26]*256 + Telemetry[27]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 200, 2);
+    M5.Lcd.drawString(str, 20, 0, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }  
@@ -290,7 +310,7 @@ float mean_temp(float Temps){
   Temp_array[j] = Temps;
   if(++j == MEAN_SIZE){j=0;}
   if(Temp_array[MEAN_SIZE-1]==0){return Temp_array[j-1];}
-  for(i = 0; i <= MEAN_SIZE; i++){Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));}
+  for(i = 0; i < MEAN_SIZE; i++){Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));}
   
   return Temp_mean;
 }
