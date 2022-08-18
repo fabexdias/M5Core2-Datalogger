@@ -6,6 +6,7 @@
 #include <analogWrite.h>
 #include <EEPROM.h>
 #include <math.h>
+#include "UAVision_logo_jpg.h"
 #define MEAN_SIZE 200
 
 extern uint8_t logo[];
@@ -140,7 +141,7 @@ void DateEvent(Event& e) {
 void setup(){
   M5.begin();
   M5.Rtc.begin();
-  M5.Lcd.drawJpg(logo, 11745);
+  M5.Lcd.drawJpg(UAVision_logo_jpg, UAVision_logo_jpg_len);
   delay(2000);
       
   // Serial Config
@@ -182,6 +183,7 @@ void setup(){
   M5.BtnB.addHandler(DateEvent, E_TOUCH);
   M5.BtnC.addHandler(DateEvent, E_TOUCH);
   swipeLeft.addHandler(Swiped, E_GESTURE); 
+
   Temp_array[MEAN_SIZE - 1] = 0;
 }
 

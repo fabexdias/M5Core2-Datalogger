@@ -1,31 +1,43 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
+# coding: utf-8
 
-'''
-# Example:
-> python bin2code.py m5_logo.jpg
-> Out:m5_logo.jpg.c Done!
-'''
+filename = ''
+n = 0
+from time import sleep
+from sys import argv
+print(argv[0])							
 
-import sys, os
+while len(argv) >= 2:
+	filename = argv[1]
+	del argv[1]
+	n = filename.find('.jpg')
+	if n > 0:
+		saveto = filename[0:n] + '_jpg.h'
+	else:
+		print('ERROR', filename)
+		continue
 
-in_name = sys.argv[1]
-out_name = in_name + '.c'
-file_size = os.path.getsize(in_name)
+	print('input filename  =',filename)
+	print('output filename =',saveto)
+	fp = open(filename, mode='br')
+	data_array = fp.read()
+	fp.close()
+	out = []
+	for d in data_array:
+		out.append(d)
 
-with open(in_name, 'rb') as infile:
-  with open(out_name, 'wb+') as outfile:
-    arrary_name = 'const unsigned char ' + out_name[0:out_name.find('.')] + '[' +str(file_size)+'] = {\n'
-    outfile.write(arrary_name.encode('utf-8'))
-    while True:
-      data = infile.read(20)
-      if len(data) > 0:
-        # outfile.write('\t'.encode('utf-8'))
-        for i in range(0, len(data)):
-          d = "0x%02x," % data[i]
-          outfile.write(d.encode('utf-8'))
-        outfile.write('\n'.encode('utf-8'))
-      else:
-        outfile.write('};\n'.encode('utf-8'))
-        break
-
-print('Out:'+ out_name +' Done!')
+	fp = open(saveto, mode='w')
+	print('#define '+filename[0:n]+'_jpg_len',len(out), file = fp)
+	print('const uint8_t '+filename[0:n]+'_jpg[] = {', file = fp)
+	i=0
+	for d in out:
+		# print(' ' + hex(d), end='', file = fp)
+		print(' 0x' + format(d, '02X'), end='', file = fp)
+		i += 1
+		if i % 16 == 0:
+			print(',', file = fp)
+		else:
+			if i < len(out):
+				print(',', end='', file = fp)
+	print('\n};', file = fp)
+	fp.close()
