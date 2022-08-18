@@ -4,6 +4,7 @@
 #include <ESP32Tone.h>
 #include <ESP32PWM.h>
 #include <analogWrite.h>
+#include <EEPROM.h>
 #include <math.h>
 #define MEAN_SIZE 200
 
@@ -12,9 +13,10 @@ Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
 String str, file_name;
-bool sd_ok = false, refreshed = false;
-int i = 0, j = 0, selecting = 0, menu = 0;
+bool eeprom_ok = false, sd_ok = false, refreshed = false;
+int i = 0, j = 0, selecting = 0, menu = 0, addr = 0;
 
+float Motor_hours = 0;
 float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
@@ -116,7 +118,7 @@ void setup(){
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
   
-  // SDcard Config
+  // Memory Config
   if (!SD.begin()){  
     str = "SDcard failed to mount.";
     M5.Lcd.drawString(str, 0, 225, 2);
@@ -129,6 +131,17 @@ void setup(){
       file_name = "/file" + String(i) + ".txt";
       i++;
     }while(SD.exists(file_name));
+  }
+
+  if(!EEPROM.begin(64)){
+    str = "Failed to initialise EEPROM.";
+    M5.Lcd.drawString(str, 0, 200, 2);
+    eeprom_ok = false;
+  }else{
+    str = "Successfully initialise EEPROM.";
+    M5.Lcd.drawString(str, 0, 225, 2);
+    eeprom_ok = true;
+    Motor_hours = (float) EEPROM.readFloat(addr);
   }
   
   // Button Config
