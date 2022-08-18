@@ -12,11 +12,13 @@ size_t bytesRecieved;
 byte Telemetry[212];
 String str, file_name;
 bool sd_ok = false;
-int i = 0, aux = 0;
+int i = 0, aux = 0, j = 0;
 
+float Temp_mean = 0;
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float Time_now = 0, Time_prev = 0, Time = 0;
+float Temp_array[100];
 
 ButtonColors on_clrs  = {BLACK, BLACK, WHITE};
 ButtonColors off_clrs = {BLACK, WHITE, WHITE};
@@ -181,14 +183,19 @@ void setup(){
   A.addHandler(UpAndDown, E_TOUCH);
   B.addHandler(UpAndDown, E_TOUCH);  
   M5.Buttons.draw();
+  M5.Lcd.setTextSize(1);
+  
+  for(int index_2 = 0; index_2 <= 99;index_2++){
+    Temp_array[index_2] = 0;
+  }
 }
  
 void loop() {
   M5.update();
-  
   Temps = ((1.1*analogRead(35)/4095*3.5481)-0.5)*100; // Using MCP9700 as temperature sensor
+  Temps = mean_temp(Temps);
   str = "Read temp: ";
-  str += String((int) round(Temps));
+  str += String((Temps));
   M5.Lcd.drawString(str, 20, 0, 2);
   str = "Ideal temp: ";
   str += String(Tempi);  
@@ -285,7 +292,21 @@ void writeSD(){
     myFile.close(); 
   }
 }
- 
+float mean_temp(float Temps){
+  Temp_array[j] = Temps;
+  if(j == 99){
+    j=0;}
+  if (Temp_array[j]==0){
+    j++;
+    return Temp_array[j-2];
+    }
+    Temp_mean = 0;
+  for(int index = 0;index <= 99;index ++){
+    Temp_mean += (Temp_array[index])/100;
+  }
+  j++;
+  return Temp_mean;
+  }
 /* {39}{2E}{00}{00}{00}{00}{00}{00}{00}{00}{00}{00}{93}{93}{01}{01}{03}{E8}{03}{F5}{03}{3F}{03}{0B}{00}{A4}
    {00}{01}{00}{93}{00}{93}{00}{00}{03}{E8}{03}{E8}{03}{D1}{00}{64}{00}{00}{00}{64}{03}{E8}{00}{64}{00}{64}
    {00}{64}{00}{00}{00}{00}{00}{00}{00}{00}{00}{0F}{00}{00}{00}{A4}{00}{64}{00}{00}{00}{64}{00}{00}{00}{00}
