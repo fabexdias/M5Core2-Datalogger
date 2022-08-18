@@ -13,7 +13,7 @@ File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name;
+String str, file_name, aux_str;
 bool eeprom_ok = false, sd_ok = false, refreshed = false;
 int i = 0, j = 0, selecting = 0, menu = 0, addr = 0;
 
@@ -41,7 +41,7 @@ void Swiped(Event& e){
 }
 
 void Scroll(Event& e) {
-  if(menu == 0){
+  if(menu == 2){
     if(++selecting >= 6){selecting = 0;}
     M5.Lcd.fillScreen(BLACK);
   }
@@ -57,7 +57,7 @@ void DateEvent(Event& e) {
   int auxMinutes = RTCTime.Minutes;
   int auxSeconds = RTCTime.Seconds;
 
-  if(menu == 0){
+  if(menu == 2){
     M5.Lcd.fillScreen(BLACK);
     if(M5.BtnC.wasPressed()){
       auxYear = Limits(auxYear + 1, 1000000, 0);
@@ -78,21 +78,27 @@ void DateEvent(Event& e) {
     switch(selecting){
       case 3:
         RTCDate.Year = auxYear;
+        aux_str = "Year";
         break;
       case 4:
         RTCDate.Month = auxMonth;
+        aux_str = "Mouth";
         break;
       case 5:
         RTCDate.Date = auxDate;
+        aux_str = "Day";
         break;
       case 0:
         RTCTime.Hours = auxHours;
+        aux_str = "Hours";
         break;
       case 1:
         RTCTime.Minutes = auxMinutes;
+        aux_str = "Minutes";
         break;
       case 2:
         RTCTime.Seconds = auxSeconds;
+        aux_str = "Seconds";
         break;    
       default:
         break;
@@ -106,7 +112,9 @@ void DateEvent(Event& e) {
 void setup(){
   M5.begin();
   M5.Rtc.begin();
-  
+  M5.Lcd.drawJpg(logo, 11745);
+  delay(2000);
+      
   // Serial Config
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
@@ -121,12 +129,10 @@ void setup(){
   
   // Memory Config
   if (!SD.begin()){  
-    str = "SDcard failed to mount.";
-    M5.Lcd.drawString(str, 0, 225, 2);
+    M5.Lcd.drawString("SDcard failed to mount.", 0, 225, 2);
     sd_ok = false;
   }else{
-    str = "SDcard successfully mounted.";
-    M5.Lcd.drawString(str, 0, 225, 2);
+    M5.Lcd.drawString("SDcard successfully mounted.", 0, 225, 2);
     sd_ok = true;
     do{
       file_name = "/file" + String(i) + ".txt";
@@ -135,22 +141,18 @@ void setup(){
   }
 
   if(!EEPROM.begin(64)){
-    str = "Failed to initialise EEPROM.";
-    M5.Lcd.drawString(str, 0, 200, 2);
+    M5.Lcd.drawString("Failed to initialise EEPROM.", 0, 200, 2);
     eeprom_ok = false;
   }else{
-    str = "Successfully initialise EEPROM.";
-    M5.Lcd.drawString(str, 0, 225, 2);
+    M5.Lcd.drawString("Successfully initialise EEPROM.", 0, 225, 2);
     eeprom_ok = true;
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
-  M5.Lcd.drawJpg(logo, 11745);
   // Button Config
   M5.BtnA.addHandler(Scroll, E_TOUCH);
   M5.BtnB.addHandler(DateEvent, E_TOUCH);
   M5.BtnC.addHandler(DateEvent, E_TOUCH);
   swipeLeft.addHandler(Swiped, E_GESTURE); 
-     
   Temp_array[MEAN_SIZE - 1] = 0;
 }
 
@@ -162,36 +164,41 @@ void menu_0(){
   str = "Ideal temp: ";
   str += String(Tempi);  
   M5.Lcd.drawString(str, 0, 40, 4);
-
-  M5.Rtc.GetDate(&RTCDate);
-  M5.Rtc.GetTime(&RTCTime);
-  str = "Hour: ";
-  str += String(RTCTime.Hours);
-  str += "-";
-  str += String(RTCTime.Minutes);
-  str += "-";
-  str += String(RTCTime.Seconds);
-  M5.Lcd.drawString(str, 0, 80, 4); 
-  str = "Date: ";
-  str += String(RTCDate.Year);      
-  str += "-";
-  str += String(RTCDate.Month);   
-  str += "-";
-  str += String(RTCDate.Date); 
-  M5.Lcd.drawString(str, 0, 120, 4); 
-
-  if(((RTCTime.Seconds == 0) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0)) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0) && (RTCTime.Hours == 0))) && !refreshed){
-    refreshed = true;
-    M5.Lcd.fillScreen(BLACK);
-  }else if(!(RTCTime.Seconds == 0)){
-    refreshed = false;
-  }
 }
 
 void menu_1(){
   if(bytesRecieved == 212){print_telemetry(0);} 
 }
 
+void menu_2(){
+  M5.Rtc.GetDate(&RTCDate);
+  M5.Rtc.GetTime(&RTCTime);
+  
+  if(((RTCTime.Seconds == 0) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0)) || ((RTCTime.Seconds == 0) && (RTCTime.Minutes == 0) && (RTCTime.Hours == 0))) && !refreshed){
+    refreshed = true;
+    M5.Lcd.drawString("                          ", 0, 80, 4);
+    M5.Lcd.drawString("                          ", 0, 120, 4);  
+  }else if(!(RTCTime.Seconds == 0)){
+    refreshed = false;
+  } 
+  
+  str = "Hour: ";
+  str += String(RTCTime.Hours);
+  str += "-";
+  str += String(RTCTime.Minutes);
+  str += "-";
+  str += String(RTCTime.Seconds);
+  M5.Lcd.drawString(str, 0, 40, 4); 
+  str = "Date: ";
+  str += String(RTCDate.Year);      
+  str += "-";
+  str += String(RTCDate.Month);   
+  str += "-";
+  str += String(RTCDate.Date); 
+  M5.Lcd.drawString(str, 0, 0, 4); 
+  
+  M5.Lcd.drawString(aux_str, 30, 160, 5);
+}
 
 void loop() {
   M5.update();
@@ -215,7 +222,10 @@ void loop() {
       break;
     case 1:
       menu_1();
-      break;      
+      break;
+    case 2:
+      menu_2();
+      break;               
     default:
       break;  
   }
