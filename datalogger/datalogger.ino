@@ -13,7 +13,7 @@ File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name, aux_str = "Test";
+String str, file_name, date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"};
 bool eeprom_ok = false, sd_ok = false;
 int i = 0, j = 0, selecting = 0, menu = 0, addr = 0;
 
@@ -78,32 +78,26 @@ void DateEvent(Event& e) {
     switch(selecting){
       case 3:
         RTCDate.Year = auxYear;
-        aux_str = "Year";
         break;
       case 4:
         RTCDate.Month = auxMonth;
-        aux_str = "Month";
         break;
       case 5:
         RTCDate.Date = auxDate;
-        aux_str = "Day";
         break;
       case 0:
         RTCTime.Hours = auxHours;
-        aux_str = "Hours";
         break;
       case 1:
         RTCTime.Minutes = auxMinutes;
-        aux_str = "Minutes";
         break;
       case 2:
         RTCTime.Seconds = auxSeconds;
-        aux_str = "Seconds";
         break;    
       default:
         break;
     }
-    
+
     M5.Rtc.SetDate(&RTCDate);
     M5.Rtc.SetTime(&RTCTime);
   }
@@ -144,10 +138,11 @@ void setup(){
     M5.Lcd.drawString("Failed to initialise EEPROM.", 0, 200, 2);
     eeprom_ok = false;
   }else{
-    M5.Lcd.drawString("Successfully initialise EEPROM.", 0, 225, 2);
+    M5.Lcd.drawString("Successfully initialise EEPROM.", 0, 200, 2);
     eeprom_ok = true;
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
+  
   // Button Config
   M5.BtnA.addHandler(Scroll, E_TOUCH);
   M5.BtnB.addHandler(DateEvent, E_TOUCH);
@@ -192,9 +187,8 @@ void menu_2(){
   str += "-";
   if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
   str += String(RTCDate.Date); 
-  M5.Lcd.drawString(str, 0, 0, 4); 
-  
-  M5.Lcd.drawString(aux_str, 0, 120, 8);
+  M5.Lcd.drawString(str, 0, 0, 4);
+  M5.Lcd.drawString(date_str[selecting], 40, 80, 4); //date_str[selecting] 
 }
 
 void loop() {
