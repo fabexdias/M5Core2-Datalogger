@@ -15,7 +15,8 @@ File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name, date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
+String str, file_name;
+String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
 bool eeprom_ok = false, sd_ok = false, temp_ok = false;
 int i = 0, j = 0, addr = 0;
 int select_time = 0, select_K, menu = 0, error_pos = 2;
@@ -44,13 +45,18 @@ void Swiped(Event& e){
 }
 
 void Scroll(Event& e) {
-  if(menu == 3){
-    if(++select_K >= 3){select_K = 0;}
+  switch(menu){
+    case 3:
+      M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
+      if(++select_K >= 3){select_K = 0;}   
+      break;
+    case 2:
+      M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
+      if(++select_time >= 6){select_time = 0;}
+      break;
+    default:
+      break;
   }
-  if(menu == 2){
-    if(++select_time >= 6){select_time = 0;}
-  }
-  M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
 } 
  
 void DateEvent(Event& e) {
@@ -58,93 +64,96 @@ void DateEvent(Event& e) {
   M5.Rtc.GetTime(&RTCTime);    
   int aux_i[6] = {RTCTime.Hours, RTCTime.Minutes, RTCTime.Seconds, RTCDate.Year, RTCDate.Month, RTCDate.Date};
   float aux_f[3] = {K_p, K_i, K_d};
+
+  switch(menu){
+    case 1:
+      M5.Lcd.fillRect(0, 0, 320, 180, WHITE);    
+      if(String(e.button->getName()) == "BtnC"){
+        Tempi++;
+      }else if(String(e.button->getName()) == "BtnB"){
+        Tempi--;
+      }      
+      break;
+    case 3:
+      M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
+      if(String(e.button->getName()) == "BtnC" && e.type == E_DBLTAP){
+        aux_f[0] = K_p + 0.1;
+        aux_f[1] = K_i + 0.1;
+        aux_f[2] = K_d + 0.1;
+      }else if(String(e.button->getName()) == "BtnB" && e.type == E_DBLTAP){
+        aux_f[0] = K_p - 0.1;
+        aux_f[1] = K_i - 0.1;
+        aux_f[2] = K_d - 0.1;
+      }else if(String(e.button->getName()) == "BtnC" && e.type == E_TAP){
+        aux_f[0] = K_p + 0.01;
+        aux_f[1] = K_i + 0.01;
+        aux_f[2] = K_d + 0.01;
+      }else if(String(e.button->getName()) == "BtnB" && e.type == E_TAP){
+        aux_f[0] = K_p - 0.01;
+        aux_f[1] = K_i - 0.01;
+        aux_f[2] = K_d - 0.01;
+      }
+    
+      switch(select_K){
+        case 0:
+          K_p = aux_f[0];
+          break;
+        case 1:
+          K_i = aux_f[1];
+          break;
+        case 2:
+          K_d = aux_f[2];
+          break;    
+        default:
+          break;
+      }    
+      break;
+    case 2:
+      M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
+      if(String(e.button->getName()) == "BtnC"){
+        aux_i[3] = Limits(aux_i[3] + 1, 1000000, 0);
+        aux_i[4] = Limits(aux_i[4] + 1, 12, 1);
+        aux_i[5] = Limits(aux_i[5] + 1, 31, 1);
+        aux_i[0] = Limits(aux_i[0] + 1, 23, 0);
+        aux_i[1] = Limits(aux_i[1] + 1, 59, 0);
+        aux_i[2] = Limits(aux_i[2] + 1, 59, 0);  
+      }else if(String(e.button->getName()) == "BtnB"){
+        aux_i[3] = Limits(aux_i[3] - 1, 1000000, 0);
+        aux_i[4] = Limits(aux_i[4] - 1, 12, 1);
+        aux_i[5] = Limits(aux_i[5] - 1, 31, 1);
+        aux_i[0] = Limits(aux_i[0] - 1, 23, 0);
+        aux_i[1] = Limits(aux_i[1] - 1, 59, 0);
+        aux_i[2] = Limits(aux_i[2] - 1, 59, 0);    
+      }
+    
+      switch(select_time){
+        case 3:
+          RTCDate.Year = aux_i[3];
+          break;
+        case 4:
+          RTCDate.Month = aux_i[4];
+          break;
+        case 5:
+          RTCDate.Date = aux_i[5];
+          break;
+        case 0:
+          RTCTime.Hours = aux_i[0];
+          break;
+        case 1:
+          RTCTime.Minutes = aux_i[1];
+          break;
+        case 2:
+          RTCTime.Seconds = aux_i[2];
+          break;    
+        default:
+          break;
+      }
   
-  if(menu == 3){
-    M5.Lcd.fillRect(0, 0, 320, 180, WHITE);    
- 
-    if(String(e.button->getName()) == "BtnC" && e.type == E_DBLTAP){
-      aux_f[0] = K_p + 0.1;
-      aux_f[1] = K_i + 0.1;
-      aux_f[2] = K_d + 0.1;
-    }else if(String(e.button->getName()) == "BtnB" && e.type == E_DBLTAP){
-      aux_f[0] = K_p - 0.1;
-      aux_f[1] = K_i - 0.1;
-      aux_f[2] = K_d - 0.1;
-    }else if(String(e.button->getName()) == "BtnC" && e.type == E_TAP){
-      aux_f[0] = K_p + 0.01;
-      aux_f[1] = K_i + 0.01;
-      aux_f[2] = K_d + 0.01;
-    }else if(String(e.button->getName()) == "BtnB" && e.type == E_TAP){
-      aux_f[0] = K_p - 0.01;
-      aux_f[1] = K_i - 0.01;
-      aux_f[2] = K_d - 0.01;
-    }
-
-    switch(select_K){
-      case 0:
-        K_p = aux_f[0];
-        break;
-      case 1:
-        K_i = aux_f[1];
-        break;
-      case 2:
-        K_d = aux_f[2];
-        break;    
-      default:
-        break;
-    }    
-  }
-
-  if(menu == 2){
-    M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
-    if(String(e.button->getName()) == "BtnC"){
-      aux_i[3] = Limits(aux_i[3] + 1, 1000000, 0);
-      aux_i[4] = Limits(aux_i[4] + 1, 12, 1);
-      aux_i[5] = Limits(aux_i[5] + 1, 31, 1);
-      aux_i[0] = Limits(aux_i[0] + 1, 23, 0);
-      aux_i[1] = Limits(aux_i[1] + 1, 59, 0);
-      aux_i[2] = Limits(aux_i[2] + 1, 59, 0);  
-    }else if(String(e.button->getName()) == "BtnB"){
-      aux_i[3] = Limits(aux_i[3] - 1, 1000000, 0);
-      aux_i[4] = Limits(aux_i[4] - 1, 12, 1);
-      aux_i[5] = Limits(aux_i[5] - 1, 31, 1);
-      aux_i[0] = Limits(aux_i[0] - 1, 23, 0);
-      aux_i[1] = Limits(aux_i[1] - 1, 59, 0);
-      aux_i[2] = Limits(aux_i[2] - 1, 59, 0);    
-    }
-  
-    switch(select_time){
-      case 3:
-        RTCDate.Year = aux_i[3];
-        break;
-      case 4:
-        RTCDate.Month = aux_i[4];
-        break;
-      case 5:
-        RTCDate.Date = aux_i[5];
-        break;
-      case 0:
-        RTCTime.Hours = aux_i[0];
-        break;
-      case 1:
-        RTCTime.Minutes = aux_i[1];
-        break;
-      case 2:
-        RTCTime.Seconds = aux_i[2];
-        break;    
-      default:
-        break;
-    }
-
-    M5.Rtc.SetDate(&RTCDate);
-    M5.Rtc.SetTime(&RTCTime);
-  }
-
-  if(menu == 4){
-    str = "BtnB: " + String(M5.BtnB.wasPressed()) + " | BtnC: " + String(M5.BtnC.wasPressed());
-    M5.Lcd.drawString(str, 40, 40, 4);
-    str = "Event: " + String(e.type) + " | Name: " + String(e.button->getName());
-    M5.Lcd.drawString(str, 40, 80, 4);    
+      M5.Rtc.SetDate(&RTCDate);
+      M5.Rtc.SetTime(&RTCTime);    
+      break;
+    default:
+      break;
   }
 }
 
@@ -199,15 +208,18 @@ void setup(){
 }
 
 void menu_0(){
-  str = "Read temp: " + String(Temps);
-  M5.Lcd.drawString(str, 0, 0, 4);
-
-  str = "Ideal temp: " + String(Tempi);
-  M5.Lcd.drawString(str, 0, 40, 4);
+  M5.Lcd.drawString(("Read temp: " + String(Temps)), 0, 0, 4);
+  M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
 }
 
 void menu_1(){
-
+  M5.Lcd.drawString("Seconds =", 20, 44, 2);
+  M5.Lcd.drawString("Barometer =", 20, 66, 2);
+  M5.Lcd.drawString("MAP =", 20, 88, 2);
+  M5.Lcd.drawString("MAT =", 20, 110, 2);
+  M5.Lcd.drawString("Coolant =", 20, 132, 2);
+  M5.Lcd.drawString("Voltage =", 20, 0, 2);
+  M5.Lcd.drawString("TPS =", 20, 22, 2);
 }
 
 void menu_2(){
@@ -235,13 +247,10 @@ void menu_2(){
 }
 
 void menu_3(){
-  str = "K_p: " + String(K_p);
-  M5.Lcd.drawString(str, 0, 0, 4);   
-  str = "K_i: " + String(K_i);
-  M5.Lcd.drawString(str, 0, 40, 4); 
-  str = "K_d: " + String(K_d);
-  M5.Lcd.drawString(str, 0, 80, 4);  
-  M5.Lcd.drawString(K_str[select_K], 40, 120, 4);   
+  M5.Lcd.drawString(("Kp: " + String(K_p)), 0, 0, 4);   
+  M5.Lcd.drawString(("Ki: " + String(K_i)), 0, 40, 4); 
+  M5.Lcd.drawString(("Kd: " + String(K_d)), 0, 80, 4);  
+  M5.Lcd.drawString((K_str[select_K] + " selected"), 40, 120, 4);   
 }
 
 void loop() {
@@ -251,8 +260,7 @@ void loop() {
 
   float battery_voltage = M5.Axp.GetBatVoltage();
   if (battery_voltage < 3.6){warnings("Low battery.             ");}
-  str = "#" + String(SERIAL_NUMBER);
-  M5.Lcd.drawString(str, 260, 190, 2);
+  M5.Lcd.drawString(("#" + String(SERIAL_NUMBER)), 260, 190, 2);
   
   if((Temps < -20 || Temps > 190) && temp_ok){
     warnings("Failed to read temperature.        ");
