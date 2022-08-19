@@ -9,12 +9,13 @@
 #include "logo_big.h"
 #include "logo_small.h"
 #define MEAN_SIZE 200
+#define SERIAL_NUMBER "XXXXXXXX"
 
 File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name, date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, warning_str;
+String str, file_name, date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
 bool eeprom_ok = false, sd_ok = false, temp_ok = false;
 int i = 0, j = 0, addr = 0;
 int select_time = 0, select_K, menu = 0, error_pos = 2;
@@ -247,6 +248,12 @@ void loop() {
   M5.update();
   M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small);  
   Temps = mean_temp(((1.1*analogRead(35)/4095*3.5481)-0.5)*100);
+
+  float battery_voltage = M5.Axp.GetBatVoltage();
+  if (battery_voltage < 3.6){warnings("Low battery.             ");}
+  str = "#" + String(SERIAL_NUMBER);
+  M5.Lcd.drawString(str, 260, 190, 2);
+  
   if((Temps < -20 || Temps > 190) && temp_ok){
     warnings("Failed to read temperature.        ");
     temp_ok = false;
@@ -260,8 +267,8 @@ void loop() {
     }
   }
   
-  str = "Menu " + String(menu);
-  M5.Lcd.drawString(str, 220, 0, 4);
+  M5.Lcd.drawString("Menu", 235, 0, 4);
+  M5.Lcd.drawString(menu_str[menu], 235, 30, 4);  
   
   switch(menu){
     case 0:
@@ -288,8 +295,8 @@ void writeSD(){
     myFile = SD.open(file_name, FILE_APPEND);
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
-    print_telemetry(1);
     myFile.printf(" Hour: %2d-%2d-%2d Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    print_telemetry(1);
     myFile.close(); 
   }
 }
@@ -326,49 +333,49 @@ void print_telemetry(int aux){
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 44, 2);
   }else if(aux == 1){
-    myFile.print(str);    
+    myFile.println(str);    
   }
 
   str = "Barometer = " + String(Telemetry[16]*256 + Telemetry[17]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 66, 2);
   }else if(aux == 1){
-    myFile.print(str);    
+    myFile.println(str);    
   }
 
   str = "MAP = " + String(Telemetry[18]*256 + Telemetry[19]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 88, 2);
   }else if(aux == 1){
-    myFile.print(str);    
+    myFile.println(str);    
   }  
 
   str = "MAT = " + String(Telemetry[20]*256 + Telemetry[21]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 110, 2);
   }else if(aux == 1){
-    myFile.print(str);    
+    myFile.println(str);    
   }    
 
   str = "Coolant = " + String(Telemetry[22]*256 + Telemetry[23]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 132, 2);
   }else if(aux == 1){
-    myFile.print(str);    
+    myFile.println(str);    
   }   
 
   str = "TPS = " + String(Telemetry[24]*256 + Telemetry[25]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 22, 2);
   }else if(aux == 1){
-    myFile.print(str);    
+    myFile.println(str);    
   }
 
   str = "Voltage = " + String(Telemetry[26]*256 + Telemetry[27]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 0, 2);
   }else if(aux == 1){
-    myFile.print(str);    
+    myFile.println(str);    
   }  
 }
 
@@ -380,7 +387,7 @@ float mean_temp(float Temps){
   return Temp_mean;
 }
 
-void warnings(String aux){ //Fazer warning para bateria e por numero de serie //225 é o mais em baixo
+void warnings(String aux){
   M5.Lcd.drawString(aux, 0, 225 - error_pos * 20, 2);
   if(--error_pos == -1) error_pos = 2; 
 }
