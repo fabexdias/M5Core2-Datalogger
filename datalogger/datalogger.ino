@@ -32,7 +32,8 @@ RTC_TimeTypeDef RTCTime;
 RTC_DateTypeDef RTCDate;
 
 Gesture swipeLeft("swipe left", 160, DIR_LEFT, 30, true);
- 
+Gesture swipeRight("swipe right", 160, DIR_RIGHT, 30, true);
+
 int Limits(int Value, int SupLimit, int InfLimit){
   if(Value > SupLimit){return InfLimit;}
   if(Value < InfLimit){return SupLimit;}
@@ -40,11 +41,14 @@ int Limits(int Value, int SupLimit, int InfLimit){
 }
 
 void Swiped(Event& e){
-  if(++menu > 4){menu = 0;}
-  M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
+  if(e.gesture != NULL){
+    if(String(e.gesture->getName()) == "swipe left"){if(++menu > 4){menu = 0;}}
+    else if(String(e.gesture->getName()) == "swipe right"){if(--menu < 0){menu = 4;}}
+    M5.Lcd.fillRect(0, 0, 320, 180, WHITE);        
+  }
 }
 
-void Scroll(Event& e) {
+void Scroll(Event& e){
   switch(menu){
     case 3:
       M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
@@ -66,7 +70,7 @@ void DateEvent(Event& e) {
   float aux_f[3] = {K_p, K_i, K_d};
 
   switch(menu){
-    case 1:
+    case 0:
       M5.Lcd.fillRect(0, 0, 320, 180, WHITE);    
       if(String(e.button->getName()) == "BtnC"){
         Tempi++;
@@ -160,11 +164,14 @@ void DateEvent(Event& e) {
 void setup(){
   M5.begin();
   M5.Rtc.begin();
+
+  // Random inicialization
   M5.Lcd.pushImage(0,0,320,240, (uint16_t *) logo_big);
   delay(4000);
   M5.Lcd.setTextColor(BLACK, WHITE);
   M5.Lcd.fillScreen(WHITE);
-      
+  for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
+        
   // Serial Config
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
@@ -204,7 +211,7 @@ void setup(){
   M5.BtnB.addHandler(DateEvent, E_TAP | E_DBLTAP);
   M5.BtnC.addHandler(DateEvent, E_TAP | E_DBLTAP);
   swipeLeft.addHandler(Swiped, E_GESTURE);
-  for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
+  swipeRight.addHandler(Swiped, E_GESTURE);  
 }
 
 void menu_0(){
@@ -243,7 +250,7 @@ void menu_2(){
   if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
   str += String(RTCDate.Date); 
   M5.Lcd.drawString(str, 0, 0, 4);
-  M5.Lcd.drawString(date_str[select_time], 40, 80, 4); //date_str[select_time] 
+  M5.Lcd.drawString((date_str[select_time] + " selected"), 40, 120, 4); //date_str[select_time] 
 }
 
 void menu_3(){
