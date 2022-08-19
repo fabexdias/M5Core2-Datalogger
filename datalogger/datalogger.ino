@@ -201,7 +201,8 @@ void menu_0(){
 }
 
 void menu_1(){
-  if(bytesRecieved == 212){print_telemetry(0);} 
+  if(bytesRecieved == 212){print_telemetry(0);}
+  else{M5.Lcd.drawString("No messege recieved.", 0, 0, 4);}
 }
 
 void menu_2(){
