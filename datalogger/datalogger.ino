@@ -6,7 +6,8 @@
 #include <analogWrite.h>
 #include <EEPROM.h>
 #include <math.h>
-#include "UAVision_logo_jpg.h"
+#include "logo_big.h"
+#include "logo_small.h"
 #define MEAN_SIZE 200
 
 extern uint8_t logo[];
@@ -39,7 +40,7 @@ int Limits(int Value, int SupLimit, int InfLimit){
 
 void Swiped(Event& e){
   if(++menu > 4){menu = 0;}
-  M5.Lcd.fillScreen(BLACK);
+  M5.Lcd.fillScreen(WHITE);
 }
 
 void Scroll(Event& e) {
@@ -49,7 +50,7 @@ void Scroll(Event& e) {
   if(menu == 2){
     if(++select_time >= 6){select_time = 0;}
   }
-  M5.Lcd.fillScreen(BLACK);
+  M5.Lcd.fillScreen(WHITE);
 } 
  
 void DateEvent(Event& e) {
@@ -59,6 +60,7 @@ void DateEvent(Event& e) {
   float aux_f[3] = {K_p, K_i, K_d};
   
   if(menu == 3){
+    M5.Lcd.fillScreen(WHITE);    
     if(M5.BtnC.pressedFor(700)){
       aux_f[0] = K_p + 0.1;
       aux_f[1] = K_i + 0.1;
@@ -93,7 +95,7 @@ void DateEvent(Event& e) {
   }
 
   if(menu == 2){
-    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.fillScreen(WHITE);
     if(M5.BtnC.wasPressed()){
       aux_i[3] = Limits(aux_i[3] + 1, 1000000, 0);
       aux_i[4] = Limits(aux_i[4] + 1, 12, 1);
@@ -141,9 +143,11 @@ void DateEvent(Event& e) {
 void setup(){
   M5.begin();
   M5.Rtc.begin();
-  M5.Lcd.drawJpg(UAVision_logo_jpg, UAVision_logo_jpg_len);
-  delay(2000);
-      
+  M5.Lcd.pushImage(0,0,320,240, (uint16_t *) logo_big);
+  delay(4000);
+  M5.Lcd.setTextColor(BLACK, WHITE);
+  M5.Lcd.fillScreen(WHITE);
+    
   // Serial Config
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
@@ -183,7 +187,6 @@ void setup(){
   M5.BtnB.addHandler(DateEvent, E_TOUCH);
   M5.BtnC.addHandler(DateEvent, E_TOUCH);
   swipeLeft.addHandler(Swiped, E_GESTURE); 
-
   Temp_array[MEAN_SIZE - 1] = 0;
 }
 
@@ -242,7 +245,7 @@ void menu_3(){
 
 void loop() {
   M5.update();
-  
+  M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small);  
   Temps = mean_temp(((1.1*analogRead(35)/4095*3.5481)-0.5)*100);
 
   if(Serial2.available() > 0){               
