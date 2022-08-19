@@ -320,7 +320,7 @@ void timed(){
   Time_prev = Time_now;
   Time = millis();
  
-  if((Time - Time_prev) > 200){
+  if((Time - Time_prev) > 300){
     Serial2.write('A');
     
     PID_error = Tempi - Temps; 
