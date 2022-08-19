@@ -60,24 +60,25 @@ void DateEvent(Event& e) {
   
   if(menu == 3){
     M5.Lcd.fillRect(0, 0, 320, 180, WHITE);    
-    if(M5.BtnC.pressedFor(700)){
+ 
+    if(String(e.button->getName()) == "BtnC" && e.type == E_DBLTAP){
       aux_f[0] = K_p + 0.1;
       aux_f[1] = K_i + 0.1;
       aux_f[2] = K_d + 0.1;
-    }else if(M5.BtnB.pressedFor(700)){
+    }else if(String(e.button->getName()) == "BtnB" && e.type == E_DBLTAP){
       aux_f[0] = K_p - 0.1;
       aux_f[1] = K_i - 0.1;
       aux_f[2] = K_d - 0.1;
-    }else if(M5.BtnC.wasPressed() && !M5.BtnC.isPressed()){
+    }else if(String(e.button->getName()) == "BtnC" && e.type == E_TAP){
       aux_f[0] = K_p + 0.01;
       aux_f[1] = K_i + 0.01;
       aux_f[2] = K_d + 0.01;
-    }else if(M5.BtnB.wasPressed() && !M5.BtnB.isPressed()){
+    }else if(String(e.button->getName()) == "BtnB" && e.type == E_TAP){
       aux_f[0] = K_p - 0.01;
       aux_f[1] = K_i - 0.01;
       aux_f[2] = K_d - 0.01;
     }
-    
+
     switch(select_K){
       case 0:
         K_p = aux_f[0];
@@ -95,14 +96,14 @@ void DateEvent(Event& e) {
 
   if(menu == 2){
     M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
-    if(M5.BtnC.wasPressed()){
+    if(String(e.button->getName()) == "BtnC"){
       aux_i[3] = Limits(aux_i[3] + 1, 1000000, 0);
       aux_i[4] = Limits(aux_i[4] + 1, 12, 1);
       aux_i[5] = Limits(aux_i[5] + 1, 31, 1);
       aux_i[0] = Limits(aux_i[0] + 1, 23, 0);
       aux_i[1] = Limits(aux_i[1] + 1, 59, 0);
       aux_i[2] = Limits(aux_i[2] + 1, 59, 0);  
-    }else if(M5.BtnB.wasPressed()){
+    }else if(String(e.button->getName()) == "BtnB"){
       aux_i[3] = Limits(aux_i[3] - 1, 1000000, 0);
       aux_i[4] = Limits(aux_i[4] - 1, 12, 1);
       aux_i[5] = Limits(aux_i[5] - 1, 31, 1);
@@ -137,6 +138,13 @@ void DateEvent(Event& e) {
     M5.Rtc.SetDate(&RTCDate);
     M5.Rtc.SetTime(&RTCTime);
   }
+
+  if(menu == 4){
+    str = "BtnB: " + String(M5.BtnB.wasPressed()) + " | BtnC: " + String(M5.BtnC.wasPressed());
+    M5.Lcd.drawString(str, 40, 40, 4);
+    str = "Event: " + String(e.type) + " | Name: " + String(e.button->getName());
+    M5.Lcd.drawString(str, 40, 80, 4);    
+  }
 }
 
 void setup(){
@@ -146,7 +154,7 @@ void setup(){
   delay(4000);
   M5.Lcd.setTextColor(BLACK, WHITE);
   M5.Lcd.fillScreen(WHITE);
-    
+      
   // Serial Config
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
@@ -162,11 +170,9 @@ void setup(){
   // Memory Config
   if (!SD.begin()){  
     warnings("SDcard failed to mount.");
-   // M5.Lcd.drawString("SDcard failed to mount.", 0, 225, 2);
     sd_ok = false;
   }else{
-   // M5.Lcd.drawString("SDcard successfully mounted.", 0, 225, 2);
-   warnings("SDcard successfully mounted.");
+    warnings("SDcard successfully mounted.");
     sd_ok = true;
     do{
       file_name = "/file" + String(i) + ".txt";
@@ -176,36 +182,31 @@ void setup(){
 
   if(!EEPROM.begin(64)){
     warnings("Failed to initialise EEPROM.");
-  //  M5.Lcd.drawString("Failed to initialise EEPROM.", 0, 200, 2);
     eeprom_ok = false;
   }else{
     warnings("Successfully initialise EEPROM.");
-  //  M5.Lcd.drawString("Successfully initialise EEPROM.", 0, 200, 2);
     eeprom_ok = true;
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
   
-  // Button Config
+  // Button & Gesture Config
   M5.BtnA.addHandler(Scroll, E_TOUCH);
-  M5.BtnB.addHandler(DateEvent, E_TOUCH);
-  M5.BtnC.addHandler(DateEvent, E_TOUCH);
-  swipeLeft.addHandler(Swiped, E_GESTURE); 
-  Temp_array[MEAN_SIZE - 1] = 0;
+  M5.BtnB.addHandler(DateEvent, E_TAP | E_DBLTAP);
+  M5.BtnC.addHandler(DateEvent, E_TAP | E_DBLTAP);
+  swipeLeft.addHandler(Swiped, E_GESTURE);
+  for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
 }
 
 void menu_0(){
-  str = "Read temp: ";
-  str += String(Temps);
+  str = "Read temp: " + String(Temps);
   M5.Lcd.drawString(str, 0, 0, 4);
 
-  str = "Ideal temp: ";
-  str += String(Tempi);  
+  str = "Ideal temp: " + String(Tempi);
   M5.Lcd.drawString(str, 0, 40, 4);
 }
 
 void menu_1(){
-  if(bytesRecieved == 212){print_telemetry(0);}
-  else{M5.Lcd.drawString("No messege recieved.", 0, 0, 4);}
+
 }
 
 void menu_2(){
@@ -222,9 +223,7 @@ void menu_2(){
   if(0 <= RTCTime.Seconds && RTCTime.Seconds < 10){str += "0";}  
   str += String(RTCTime.Seconds);
   M5.Lcd.drawString(str, 0, 40, 4); 
-  str = "Date: ";
-  str += String(RTCDate.Year);      
-  str += "-";
+  str = "Date: " + String(RTCDate.Year) + "-";
   if(0 <= RTCDate.Month && RTCDate.Month < 10){str += "0";}  
   str += String(RTCDate.Month);   
   str += "-";
@@ -235,14 +234,11 @@ void menu_2(){
 }
 
 void menu_3(){
-  str = "K_p: ";
-  str += String(K_p); 
+  str = "K_p: " + String(K_p);
   M5.Lcd.drawString(str, 0, 0, 4);   
-  str = "K_i: ";
-  str += String(K_i); 
+  str = "K_i: " + String(K_i);
   M5.Lcd.drawString(str, 0, 40, 4); 
-  str = "K_d: ";
-  str += String(K_d); 
+  str = "K_d: " + String(K_d);
   M5.Lcd.drawString(str, 0, 80, 4);  
   M5.Lcd.drawString(K_str[select_K], 40, 120, 4);   
 }
@@ -254,21 +250,17 @@ void loop() {
   if((Temps < -20 || Temps > 190) && temp_ok){
     warnings("Failed to read temperature.        ");
     temp_ok = false;
-  }
-  else if ((Temps > -20 && Temps < 190)){
-    temp_ok = true;
-    }
-  
+  }else if ((Temps > -20 && Temps < 190)){temp_ok = true;}  
   
   if(Serial2.available() > 0){               
     bytesRecieved = Serial2.readBytes(Telemetry,212);
     if(bytesRecieved == 212){
       writeSD();
+      if(menu == 1){print_telemetry(0);}
     }
   }
-
-  str = "Menu ";
-  str += String(menu); 
+  
+  str = "Menu " + String(menu);
   M5.Lcd.drawString(str, 220, 0, 4);
   
   switch(menu){
@@ -330,56 +322,49 @@ void timed(){
 }
 
 void print_telemetry(int aux){
-  str = "Seconds = ";
-  str += String(Telemetry[0]*256 + Telemetry[1]);
+  str = "Seconds = " + String(Telemetry[0]*256 + Telemetry[1]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 50, 2);
+    M5.Lcd.drawString(str, 20, 44, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }
 
-  str = "Barometer = ";
-  str += String(Telemetry[16]*256 + Telemetry[17]);
+  str = "Barometer = " + String(Telemetry[16]*256 + Telemetry[17]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 75, 2);
+    M5.Lcd.drawString(str, 20, 66, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }
 
-  str = "MAP = ";
-  str += String(Telemetry[18]*256 + Telemetry[19]);
+  str = "MAP = " + String(Telemetry[18]*256 + Telemetry[19]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 100, 2);
+    M5.Lcd.drawString(str, 20, 88, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }  
 
-  str = "MAT = ";
-  str += String(Telemetry[20]*256 + Telemetry[21]);
+  str = "MAT = " + String(Telemetry[20]*256 + Telemetry[21]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 125, 2);
+    M5.Lcd.drawString(str, 20, 110, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }    
 
-  str = "Coolant = ";
-  str += String(Telemetry[22]*256 + Telemetry[23]);
+  str = "Coolant = " + String(Telemetry[22]*256 + Telemetry[23]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 150, 2);
+    M5.Lcd.drawString(str, 20, 132, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }   
 
-  str = "TPS = ";
-  str += String(Telemetry[24]*256 + Telemetry[25]);
+  str = "TPS = " + String(Telemetry[24]*256 + Telemetry[25]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 25, 2);
+    M5.Lcd.drawString(str, 20, 22, 2);
   }else if(aux == 1){
     myFile.print(str);    
   }
 
-  str = "Voltage = ";
-  str += String(Telemetry[26]*256 + Telemetry[27]);
+  str = "Voltage = " + String(Telemetry[26]*256 + Telemetry[27]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 0, 2);
   }else if(aux == 1){
@@ -391,17 +376,11 @@ float mean_temp(float Temps){
   float Temp_mean = 0;
   Temp_array[j] = Temps;
   if(++j == MEAN_SIZE){j=0;}
-  if(Temp_array[MEAN_SIZE-1]==0){return Temp_array[j-1];}
   for(i = 0; i < MEAN_SIZE; i++){Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));}
-  
   return Temp_mean;
 }
 
 void warnings(String aux){ //Fazer warning para bateria e por numero de serie //225 é o mais em baixo
   M5.Lcd.drawString(aux, 0, 225 - error_pos * 20, 2);
-  error_pos--;
-
-  if(error_pos == -1){
-    error_pos = 2;
-    } 
-  }
+  if(--error_pos == -1) error_pos = 2; 
+}
