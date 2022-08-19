@@ -10,15 +10,14 @@
 #include "logo_small.h"
 #define MEAN_SIZE 200
 
-extern uint8_t logo[];
 File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name, date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"};
-bool eeprom_ok = false, sd_ok = false;
+String str, file_name, date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, warning_str;
+bool eeprom_ok = false, sd_ok = false, temp_ok = false;
 int i = 0, j = 0, addr = 0;
-int select_time = 0, select_K, menu = 0;
+int select_time = 0, select_K, menu = 0, error_pos = 2;
 
 float Motor_hours = 0;
 float Temp_array[MEAN_SIZE];
@@ -40,7 +39,7 @@ int Limits(int Value, int SupLimit, int InfLimit){
 
 void Swiped(Event& e){
   if(++menu > 4){menu = 0;}
-  M5.Lcd.fillScreen(WHITE);
+  M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
 }
 
 void Scroll(Event& e) {
@@ -50,7 +49,7 @@ void Scroll(Event& e) {
   if(menu == 2){
     if(++select_time >= 6){select_time = 0;}
   }
-  M5.Lcd.fillScreen(WHITE);
+  M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
 } 
  
 void DateEvent(Event& e) {
@@ -60,7 +59,7 @@ void DateEvent(Event& e) {
   float aux_f[3] = {K_p, K_i, K_d};
   
   if(menu == 3){
-    M5.Lcd.fillScreen(WHITE);    
+    M5.Lcd.fillRect(0, 0, 320, 180, WHITE);    
     if(M5.BtnC.pressedFor(700)){
       aux_f[0] = K_p + 0.1;
       aux_f[1] = K_i + 0.1;
@@ -95,7 +94,7 @@ void DateEvent(Event& e) {
   }
 
   if(menu == 2){
-    M5.Lcd.fillScreen(WHITE);
+    M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
     if(M5.BtnC.wasPressed()){
       aux_i[3] = Limits(aux_i[3] + 1, 1000000, 0);
       aux_i[4] = Limits(aux_i[4] + 1, 12, 1);
@@ -162,10 +161,12 @@ void setup(){
   
   // Memory Config
   if (!SD.begin()){  
-    M5.Lcd.drawString("SDcard failed to mount.", 0, 225, 2);
+    warnings("SDcard failed to mount.");
+   // M5.Lcd.drawString("SDcard failed to mount.", 0, 225, 2);
     sd_ok = false;
   }else{
-    M5.Lcd.drawString("SDcard successfully mounted.", 0, 225, 2);
+   // M5.Lcd.drawString("SDcard successfully mounted.", 0, 225, 2);
+   warnings("SDcard successfully mounted.");
     sd_ok = true;
     do{
       file_name = "/file" + String(i) + ".txt";
@@ -174,10 +175,12 @@ void setup(){
   }
 
   if(!EEPROM.begin(64)){
-    M5.Lcd.drawString("Failed to initialise EEPROM.", 0, 200, 2);
+    warnings("Failed to initialise EEPROM.");
+  //  M5.Lcd.drawString("Failed to initialise EEPROM.", 0, 200, 2);
     eeprom_ok = false;
   }else{
-    M5.Lcd.drawString("Successfully initialise EEPROM.", 0, 200, 2);
+    warnings("Successfully initialise EEPROM.");
+  //  M5.Lcd.drawString("Successfully initialise EEPROM.", 0, 200, 2);
     eeprom_ok = true;
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
@@ -248,7 +251,15 @@ void loop() {
   M5.update();
   M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small);  
   Temps = mean_temp(((1.1*analogRead(35)/4095*3.5481)-0.5)*100);
-
+  if((Temps < -20 || Temps > 190) && temp_ok){
+    warnings("Failed to read temperature.        ");
+    temp_ok = false;
+  }
+  else if ((Temps > -20 && Temps < 190)){
+    temp_ok = true;
+    }
+  
+  
   if(Serial2.available() > 0){               
     bytesRecieved = Serial2.readBytes(Telemetry,212);
     if(bytesRecieved == 212){
@@ -385,3 +396,12 @@ float mean_temp(float Temps){
   
   return Temp_mean;
 }
+
+void warnings(String aux){ //Fazer warning para bateria e por numero de serie //225 é o mais em baixo
+  M5.Lcd.drawString(aux, 0, 225 - error_pos * 20, 2);
+  error_pos--;
+
+  if(error_pos == -1){
+    error_pos = 2;
+    } 
+  }
