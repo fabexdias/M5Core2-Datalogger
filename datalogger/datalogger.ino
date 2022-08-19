@@ -295,7 +295,7 @@ void writeSD(){
     myFile = SD.open(file_name, FILE_APPEND);
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
-    myFile.printf(" Hour: %2d-%2d-%2d Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.printf("Hour: %2d-%2d-%2d Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
     print_telemetry(1);
     myFile.close(); 
   }
