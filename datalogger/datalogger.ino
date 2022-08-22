@@ -15,6 +15,17 @@
 #define SERIAL_NUMBER "XXXXXXXX" // Numero de série
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
 
+#define SECONDS 0
+#define RMP 1
+#define BARO 2
+#define MAP 3
+#define MAT 4
+#define COOLANT 5
+#define TPS 6
+#define VOLTAGE 7
+#define WARMCOR 8
+#define BAROCOR 9
+
 File myFile;
 Servo myServo;
 size_t bytesRecieved;
@@ -31,6 +42,7 @@ float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
 float Time_now = 0, Time_prev = 0, Time = 0, battery_voltage = 0;
+float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
 RTC_DateTypeDef RTCDate;
@@ -361,25 +373,25 @@ void timed(){
 
 // Esta função é usada para printar a telemetria quer no SDcard quer no display, usado aux = 1 e aux = 0, respectivamente
 void print_telemetry(int aux){
-  str = "Seconds = " + String(Telemetry[0]*256 + Telemetry[1]) + " s     ";
+  data_logging[SECONDS] = (float) (Telemetry[0]*256 + Telemetry[1]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 154, 2);
+    M5.Lcd.drawString("Seconds = " + String(data_logging[SECONDS],0) + " s     ", 20, 154, 2);
   }else if(aux == 1){
-    myFile.println(str);    
+    myFile.print("%.2f/", data_logging[SECONDS]);    
   }
   
-  str = "RPM = " + String((Telemetry[6]*256 + Telemetry[7])) + " RPM      ";
+  data_logging[RPM] = (float) (Telemetry[6]*256 + Telemetry[7]);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 44, 2);
+    M5.Lcd.drawString("RPM = " + String(data_logging[RPM],0) + " RPM      ", 20, 44, 2);
   }else if(aux == 1){
-    myFile.println(str);    
+    myFile.print("%.2f/", data_logging[RPM]);    
   }
 
-  str = "Barometer = " + String((float)((float)(Telemetry[16]*256 + Telemetry[17])/10),1) + " kPa      ";
+  data_logging[BARO] = (float)((float)(Telemetry[16]*256 + Telemetry[17])/10)
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 66, 2);
+    M5.Lcd.drawString("Barometer = " + String(data_logging[BARO],1) + " kPa      ", 20, 66, 2);
   }else if(aux == 1){
-    myFile.println(str);    
+    myFile.print("%.2f/", data_logging[BARO]);    
   }
 
   str = "MAP = " + String((float)((float)(Telemetry[18]*256 + Telemetry[19])/10),1) + " kPa    ";
