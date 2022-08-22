@@ -6,10 +6,14 @@
 #include <analogWrite.h>
 #include <EEPROM.h>
 #include <math.h>
+
+// Imagens passadas para byte streams
 #include "logo_big.h"
 #include "logo_small.h"
-#define MEAN_SIZE 401
-#define SERIAL_NUMBER "XXXXXXXX"
+
+#define MEAN_SIZE 601 // Tamanho do vetor de aquisições
+#define SERIAL_NUMBER "XXXXXXXX" // Numero de série
+#define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
 
 File myFile;
 Servo myServo;
@@ -26,28 +30,26 @@ float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
-float Time_now = 0, Time_prev = 0, Time = 0;
- 
+float Time_now = 0, Time_prev = 0, Time = 0, battery_voltage = 0;
+
 RTC_TimeTypeDef RTCTime;
 RTC_DateTypeDef RTCDate;
 
+// Gestos para passar de menu em menu
 Gesture swipeLeft("swipe left", 160, DIR_LEFT, 30, true);
 Gesture swipeRight("swipe right", 160, DIR_RIGHT, 30, true);
 
-int Limits(int Value, int SupLimit, int InfLimit){
-  if(Value > SupLimit){return InfLimit;}
-  if(Value < InfLimit){return SupLimit;}
-  return Value;
-}
-
+// Função de interrupção para gestos (passa de menu em menu)
 void Swiped(Event& e){
   if(e.gesture != NULL){
     if(String(e.gesture->getName()) == "swipe left"){if(++menu > 4){menu = 0;}}
     else if(String(e.gesture->getName()) == "swipe right"){if(--menu < 0){menu = 4;}}
-    M5.Lcd.fillRect(0, 0, 320, 180, WHITE);        
+    M5.Lcd.fillRect(0, 0, 320, 180, WHITE); // Este comando é usado sempre que é premido um botão e serve para pintar a parte do ecrã referente aos diferentes menus.
+                                            // Isto é feito para que não haja strings sobrepostas nem que haja erros (por exemplo, um valor que passe de 105 para 2 ficaria 205)        
   }
 }
 
+// Função que faz passar de parametro em parametro, consuante o menu
 void Scroll(Event& e){
   switch(menu){
     case 3:
@@ -62,8 +64,16 @@ void Scroll(Event& e){
       break;
   }
 } 
- 
-void DateEvent(Event& e) {
+
+// Função auxiliar para a difinição de horas (passa de 23h para 0h, por exemplo)
+int Limits(int Value, int SupLimit, int InfLimit){
+  if(Value > SupLimit){return InfLimit;}
+  if(Value < InfLimit){return SupLimit;}
+  return Value;
+}
+
+// Função para alterar parametros
+void ParamEvent(Event& e) {
   M5.Rtc.GetDate(&RTCDate);
   M5.Rtc.GetTime(&RTCTime);    
   int aux_i[6] = {RTCTime.Hours, RTCTime.Minutes, RTCTime.Seconds, RTCDate.Year, RTCDate.Month, RTCDate.Date};
@@ -72,7 +82,7 @@ void DateEvent(Event& e) {
   switch(menu){
     case 0:
       M5.Lcd.fillRect(0, 0, 320, 180, WHITE);    
-      if(String(e.button->getName()) == "BtnC"){
+      if(String(e.button->getName()) == "BtnC"){ // Distinguindo que botão foi premido
         Tempi++;
       }else if(String(e.button->getName()) == "BtnB"){
         Tempi--;
@@ -80,7 +90,7 @@ void DateEvent(Event& e) {
       break;
     case 3:
       M5.Lcd.fillRect(0, 0, 320, 180, WHITE);
-      if(String(e.button->getName()) == "BtnC" && e.type == E_DBLTAP){
+      if(String(e.button->getName()) == "BtnC" && e.type == E_DBLTAP){ // Dois cliques aumentam/diminuem 0.1
         aux_f[0] = K_p + 0.1;
         aux_f[1] = K_i + 0.1;
         aux_f[2] = K_d + 0.1;
@@ -88,7 +98,7 @@ void DateEvent(Event& e) {
         aux_f[0] = K_p - 0.1;
         aux_f[1] = K_i - 0.1;
         aux_f[2] = K_d - 0.1;
-      }else if(String(e.button->getName()) == "BtnC" && e.type == E_TAP){
+      }else if(String(e.button->getName()) == "BtnC" && e.type == E_TAP){ // Um clique aumentam/diminuem 0.01
         aux_f[0] = K_p + 0.01;
         aux_f[1] = K_i + 0.01;
         aux_f[2] = K_d + 0.01;
@@ -161,6 +171,7 @@ void DateEvent(Event& e) {
   }
 }
 
+// Função de setup corre uma vez, quando o código é inicializado
 void setup(){
   M5.begin();
   M5.Rtc.begin();
@@ -194,10 +205,10 @@ void setup(){
     do{
       file_name = "/file" + String(i) + ".txt";
       i++;
-    }while(SD.exists(file_name));
+    }while(SD.exists(file_name)); // este ciclo DO WHILE tem o objetivo de criar um novo ficheiro com continuação
   }
 
-  if(!EEPROM.begin(64)){
+  if(!EEPROM.begin(64)){ // Guarda-se na EEPROM os valores mais importantes e começa-se por inicializar devidamente as variaveis importantes
     warnings("Failed to initialise EEPROM.");
     eeprom_ok = false;
   }else{
@@ -206,21 +217,23 @@ void setup(){
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
   
-  // Button & Gesture Config
+  // Buttons & Gestures Config
   M5.BtnA.addHandler(Scroll, E_TOUCH);
-  M5.BtnB.addHandler(DateEvent, E_TAP | E_DBLTAP);
-  M5.BtnC.addHandler(DateEvent, E_TAP | E_DBLTAP);
+  M5.BtnB.addHandler(ParamEvent, E_TAP | E_DBLTAP);
+  M5.BtnC.addHandler(ParamEvent, E_TAP | E_DBLTAP);
   swipeLeft.addHandler(Swiped, E_GESTURE);
   swipeRight.addHandler(Swiped, E_GESTURE);  
 }
 
-void menu_0(){
-  M5.Lcd.drawString(("Read temp: " + String(Temps)), 0, 0, 4);
+// Função relativa ao menu 0
+void menu_0(){ // nestas funções pouco se trata para além da interface gráfica
+  M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 4);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
 }
 
+// Função relativa ao menu 1
 void menu_1(){
-  M5.Lcd.drawString("Seconds =", 20, 44, 2);
+  M5.Lcd.drawString("RPM =", 20, 44, 2);
   M5.Lcd.drawString("Barometer =", 20, 66, 2);
   M5.Lcd.drawString("MAP =", 20, 88, 2);
   M5.Lcd.drawString("MAT =", 20, 110, 2);
@@ -229,6 +242,7 @@ void menu_1(){
   M5.Lcd.drawString("TPS =", 20, 22, 2);
 }
 
+// Função relativa ao menu 2
 void menu_2(){
   M5.Rtc.GetDate(&RTCDate);
   M5.Rtc.GetTime(&RTCTime);
@@ -250,9 +264,10 @@ void menu_2(){
   if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
   str += String(RTCDate.Date); 
   M5.Lcd.drawString(str, 0, 0, 4);
-  M5.Lcd.drawString((date_str[select_time] + " selected"), 40, 120, 4); //date_str[select_time] 
+  M5.Lcd.drawString((date_str[select_time] + " selected"), 40, 120, 4);
 }
 
+// Função relativa ao menu 3
 void menu_3(){
   M5.Lcd.drawString(("Kp: " + String(K_p)), 0, 0, 4);   
   M5.Lcd.drawString(("Ki: " + String(K_i)), 0, 40, 4); 
@@ -260,20 +275,23 @@ void menu_3(){
   M5.Lcd.drawString((K_str[select_K] + " selected"), 40, 120, 4);   
 }
 
+// Esta função fica em loop infinito durante a execução do programa
 void loop() {
   M5.update();
-  M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small);  
-  Temps = median_temp();
-  
-  float battery_voltage = M5.Axp.GetBatVoltage();
-  if (battery_voltage < 3.6){warnings("Low battery.             ");}
   M5.Lcd.drawString(("#" + String(SERIAL_NUMBER)), 260, 190, 2);
+  M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small); // Inserção do logo pequeno e número de série no canto inferior do ecrã
+  M5.Lcd.drawString("Menu", 235, 0, 4);
+  M5.Lcd.drawString(menu_str[menu], 235, 30, 4); // Inserção de "Menu X" no canto superior do ecrã
   
+  timed();
   if((Temps < -20 || Temps > 190) && temp_ok){
     warnings("Failed to read temperature.        ");
     temp_ok = false;
   }else if ((Temps > -20 && Temps < 190)){temp_ok = true;}  
-  
+
+  battery_voltage = M5.Axp.GetBatVoltage();
+  if (battery_voltage < 3.6){warnings("Low battery.             ");}
+ 
   if(Serial2.available() > 0){               
     bytesRecieved = Serial2.readBytes(Telemetry,212);
     if(bytesRecieved == 212){
@@ -281,9 +299,6 @@ void loop() {
       if(menu == 1){print_telemetry(0);}
     }
   }
-  
-  M5.Lcd.drawString("Menu", 235, 0, 4);
-  M5.Lcd.drawString(menu_str[menu], 235, 30, 4);  
   
   switch(menu){
     case 0:
@@ -301,10 +316,9 @@ void loop() {
     default:
       break;  
   }
-  
-  timed();
 }
- 
+
+// A função writeSD é executada sempre que se recebe 212 bytes via Serial e guarda apenas as informações de interesse
 void writeSD(){
   if (sd_ok == true) {
     myFile = SD.open(file_name, FILE_APPEND);
@@ -316,77 +330,87 @@ void writeSD(){
   }
 }
 
+// A função timed é sempre executada, porém só faz efetivamente algo dee 300 em 300 milisegundos
 void timed(){
+  float aux;
+  int k = 0;
   Time_prev = Time_now;
   Time = millis();
  
-  if((Time - Time_prev) > 1000){
-    Serial2.write('A');
-    for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = ((1.1*analogRead(35)/4095*3.5481)-0.5)*100;}
-    PID_error = Tempi - Temps; 
-    PID_p = K_p * PID_error;
-    PID_i = PID_i + (K_i * PID_error);
+  if((Time - Time_prev) > SAMPLE_TIME){
+    Serial2.write('A'); // Isto serve para requesitar dados à centralina 
+    
+    Temps = median_temp(); // Leitura da temperatura com filtro de mediana
+    
+    PID_error = Tempi - Temps; // Isto é o controlador PID para o servo
+    PID_p = PID_error;
+    PID_i = PID_i + PID_error;
+    if(PID_i > (151/K_i)){PID_i = (151/K_i);} // Anti-windup
+    else if(PID_i < (61/K_i)){PID_i = (61/K_i);} 
     Time_now = millis(); 
-    PID_d = K_d*((PID_error - PREV_error)/((Time_now - Time_prev)/1000));
-    PID_value = PID_p + PID_i + PID_d;
+    PID_d = (PID_error - PREV_error)/((Time_now - Time_prev)/1000);
+    PID_value = K_p * PID_p + K_i * PID_i + K_d * PID_d;
     PREV_error = PID_error;
  
-    if(PID_value > 105){
-      PID_value = 105;
-      if(PID_i > 110){PID_i = 110;}
-    }else if(PID_value < 15){
-      PID_value = 15;
-      if(PID_i < 0){PID_i = 0;}
-    }
+    if(PID_value > 151){PID_value = 151;} // 151 e 61 são equivalentes a 0º e 90º, respectivamente
+    else if(PID_value < 61){PID_value = 61;}
     
-    myServo.write(map(PID_value, 15, 105, 61, 151));
+    myServo.write(PID_value);
   }
 }
 
+// Esta função é usada para printar a telemetria quer no SDcard quer no display, usado aux = 1 e aux = 0, respectivamente
 void print_telemetry(int aux){
-  str = "RPM = " + String(Telemetry[6]*256 + Telemetry[7]);
+  str = "Seconds = " + String(Telemetry[0]*256 + Telemetry[1]) + " s     ";
+  if(aux == 0){
+    M5.Lcd.drawString(str, 20, 154, 2);
+  }else if(aux == 1){
+    myFile.println(str);    
+  }
+  
+  str = "RPM = " + String((Telemetry[6]*256 + Telemetry[7])) + " RPM      ";
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 44, 2);
   }else if(aux == 1){
     myFile.println(str);    
   }
 
-  str = "Barometer = " + String(Telemetry[16]*256 + Telemetry[17]);
+  str = "Barometer = " + String((float)((float)(Telemetry[16]*256 + Telemetry[17])/10),1) + " kPa      ";
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 66, 2);
   }else if(aux == 1){
     myFile.println(str);    
   }
 
-  str = "MAP = " + String(Telemetry[18]*256 + Telemetry[19]);
+  str = "MAP = " + String((float)((float)(Telemetry[18]*256 + Telemetry[19])/10),1) + " kPa    ";
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 88, 2);
   }else if(aux == 1){
     myFile.println(str);    
   }  
 
-  str = "MAT = " + String(Telemetry[20]*256 + Telemetry[21]);
+  str = "MAT = " + String((float)((float)(Telemetry[20]*256 + Telemetry[21] -32)*5/90),1) + " C     ";
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 110, 2);
   }else if(aux == 1){
     myFile.println(str);    
   }    
 
-  str = "Coolant = " + String(Telemetry[22]*256 + Telemetry[23]);
+  str = "Coolant = " + String((float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90),1) + " C      ";
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 132, 2);
   }else if(aux == 1){
     myFile.println(str);    
   }   
 
-  str = "TPS = " + String(Telemetry[24]*256 + Telemetry[25]);
+  str = "TPS = " + String((float)((float)(Telemetry[24]*256 + Telemetry[25])/10),1) + " %       ";
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 22, 2);
   }else if(aux == 1){
     myFile.println(str);    
   }
 
-  str = "Voltage = " + String(Telemetry[26]*256 + Telemetry[27]);
+  str = "Voltage = " + String((float)((float)(Telemetry[26]*256 + Telemetry[27])/10),1) + " V        ";
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 0, 2);
   }else if(aux == 1){
@@ -394,55 +418,29 @@ void print_telemetry(int aux){
   }  
 }
 
-/*float median_temp(float Temps){
+// Função que trata de filtrar os dados da temperatura com filtro de média
+float mean_temp(float Temps){
   float Temp_mean = 0;
   Temp_array[j] = Temps;
   if(++j == MEAN_SIZE){j=0;}
   for(i = 0; i < MEAN_SIZE; i++){Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));}
   return Temp_mean;
-}*/
+}
 
-/*float median_temp(float Temps){
-  float Temp_aux;
-  float Temp_mean = 0;
-  Temp_array[j] = Temps;
-  //float Temp_ordem[]
-  if(++j == MEAN_SIZE){j=0;}
-  for(i = 0; i < MEAN_SIZE; i++){
-    //Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));
-    if(i == 0){Temp_ordem[i] = Temp_array[i];}
-    else if(Temp_array[i-1]<= Temp_array[i]){
-      Temp_ordem[i] = Temp_array[i];
-      }
-    else{
-      for(int k = 0;k<=i;k++){
-      Temp_aux = Temp_ordem[k];
-      Temp_ordem[k-1] = Temp_array[i];
-      Temp_ordem[i] = Temp_aux;
-      }}
-      Serial.println(Temp_ordem[i]);
-    }
-  Serial.println("NOVOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")  ;
-  return Temp_mean;
-} */
 float median_temp(){
- float a;
- //Temp_array[j] = Temps;
-  for (i = 0; i < MEAN_SIZE; ++i){
-    for (int k = i + 1; k < MEAN_SIZE; ++k){
-       if (Temp_array[i] > Temp_array[k]){
-           a = Temp_array[i];
-           Temp_array[i] = Temp_array[k];
-           Temp_array[k] = a;
+  float a;
+  for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = ((1.1*analogRead(35)/4095*3.5481)-0.5)*100;} 
+  for(i = 0; i < MEAN_SIZE; i++)
+    for (int k = i + 1; k < MEAN_SIZE; k++)
+      if (Temp_array[i] > Temp_array[k]){
+        a = Temp_array[i];
+        Temp_array[i] = Temp_array[k];
+        Temp_array[k] = a;
       }
-   }
-}
-//if(++j == MEAN_SIZE){j = 0;}
-
-return Temp_array[201];  
+  return Temp_array[300];  
 }
 
-  
+// Função que trata de dar cicle nas mensagens de aviso, na zona inferior do ecrã
 void warnings(String aux){
   M5.Lcd.drawString(aux, 0, 225 - error_pos * 20, 2);
   if(--error_pos == -1) error_pos = 2; 
