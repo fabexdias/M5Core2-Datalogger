@@ -263,6 +263,7 @@ void menu_0(){ // nestas funções pouco se trata para além da interface gráfi
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 4);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
   M5.Lcd.drawString(("Voltage: " + String(1.1*analogRead(36)/4095*3.5481)),0,80,4);
+  M5.Lcd.drawString(("Voltage: " + String(analogRead(36)),0,120,4);  
 }
 
 // Função relativa ao menu 1
