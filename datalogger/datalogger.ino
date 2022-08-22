@@ -173,7 +173,6 @@ void setup(){
   for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
         
   // Serial Config
-  Serial.begin(115200);
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
   
