@@ -16,7 +16,7 @@
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
 
 #define SECONDS 0
-#define RMP 1
+#define RPM 1
 #define BARO 2
 #define MAP 3
 #define MAT 4
@@ -252,6 +252,8 @@ void menu_1(){
   M5.Lcd.drawString("Coolant =", 20, 132, 2);
   M5.Lcd.drawString("Voltage =", 20, 0, 2);
   M5.Lcd.drawString("TPS =", 20, 22, 2);
+  M5.Lcd.drawString("Warmup =", 160, 110, 2);
+  M5.Lcd.drawString("BCorr =", 160, 88, 2);
 }
 
 // Função relativa ao menu 2
@@ -377,57 +379,69 @@ void print_telemetry(int aux){
   if(aux == 0){
     M5.Lcd.drawString("Seconds = " + String(data_logging[SECONDS],0) + " s     ", 20, 154, 2);
   }else if(aux == 1){
-    myFile.print("%.2f/", data_logging[SECONDS]);    
+    myFile.printf("%.2f/", data_logging[SECONDS]);    
   }
   
   data_logging[RPM] = (float) (Telemetry[6]*256 + Telemetry[7]);
   if(aux == 0){
     M5.Lcd.drawString("RPM = " + String(data_logging[RPM],0) + " RPM      ", 20, 44, 2);
   }else if(aux == 1){
-    myFile.print("%.2f/", data_logging[RPM]);    
+    myFile.printf("%.2f/", data_logging[RPM]);    
   }
 
-  data_logging[BARO] = (float)((float)(Telemetry[16]*256 + Telemetry[17])/10)
+  data_logging[BARO] = (float)((float)(Telemetry[16]*256 + Telemetry[17])/10);
   if(aux == 0){
     M5.Lcd.drawString("Barometer = " + String(data_logging[BARO],1) + " kPa      ", 20, 66, 2);
   }else if(aux == 1){
-    myFile.print("%.2f/", data_logging[BARO]);    
+    myFile.printf("%.2f/", data_logging[BARO]);    
   }
 
-  str = "MAP = " + String((float)((float)(Telemetry[18]*256 + Telemetry[19])/10),1) + " kPa    ";
+  data_logging[MAP] = (float)((float)(Telemetry[18]*256 + Telemetry[19])/10);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 88, 2);
+    M5.Lcd.drawString("MAP = " + String(data_logging[MAP],1) + " kPa    ", 20, 88, 2);
   }else if(aux == 1){
-    myFile.println(str);    
+    myFile.printf("%.2f/", data_logging[MAP]);    
   }  
 
-  str = "MAT = " + String((float)((float)(Telemetry[20]*256 + Telemetry[21] -32)*5/90),1) + " C     ";
+  data_logging[MAT] = (float)((float)(Telemetry[20]*256 + Telemetry[21] -32)*5/90);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 110, 2);
+    M5.Lcd.drawString("MAT = " + String(data_logging[MAT],1) + " C     ", 20, 110, 2);
   }else if(aux == 1){
-    myFile.println(str);    
+    myFile.printf("%.2f/", data_logging[MAT]);    
   }    
 
-  str = "Coolant = " + String((float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90),1) + " C      ";
+  data_logging[COOLANT] = (float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 132, 2);
+    M5.Lcd.drawString("Coolant = " + String(data_logging[COOLANT],1) + " C      ", 20, 132, 2);
   }else if(aux == 1){
-    myFile.println(str);    
+    myFile.printf("%.2f/", data_logging[COOLANT]);    
   }   
 
-  str = "TPS = " + String((float)((float)(Telemetry[24]*256 + Telemetry[25])/10),1) + " %       ";
+  data_logging[TPS] = (float)((float)(Telemetry[24]*256 + Telemetry[25])/10);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 22, 2);
+    M5.Lcd.drawString("TPS = " + String(data_logging[TPS],1) + " %       ", 20, 22, 2);
   }else if(aux == 1){
-    myFile.println(str);    
+    myFile.printf("%.2f/", data_logging[TPS]);    
   }
 
-  str = "Voltage = " + String((float)((float)(Telemetry[26]*256 + Telemetry[27])/10),1) + " V        ";
+  data_logging[VOLTAGE] = (float)((float)(Telemetry[26]*256 + Telemetry[27])/10);
   if(aux == 0){
-    M5.Lcd.drawString(str, 20, 0, 2);
+    M5.Lcd.drawString("Voltage = " + String(data_logging[VOLTAGE],1) + " V        ", 20, 0, 2);
   }else if(aux == 1){
-    myFile.println(str);    
-  }  
+    myFile.printf("%.2f/", data_logging[VOLTAGE]);    
+  } 
+  data_logging[WARMCOR] = (float)((float)(Telemetry[40]*256 + Telemetry[41])/10);
+  if(aux == 0){
+    M5.Lcd.drawString("Warmup = " + String(data_logging[WARMCOR],1) + " %        ", 160, 110, 2);
+  }else if(aux == 1){
+    myFile.printf("%.2f/", data_logging[WARMCOR]);    
+  }
+  data_logging[BAROCOR] = (float)((float)(Telemetry[46]*256 + Telemetry[47])/10);
+  if(aux == 0){
+    M5.Lcd.drawString("BCorr = " + String(data_logging[BAROCOR],1) + " %        ", 160, 88, 2);
+  }else if(aux == 1){
+    myFile.printf("%.2f\n", data_logging[BAROCOR]);    
+  }
 }
 
 // Função que trata de filtrar os dados da temperatura com filtro de média
