@@ -338,7 +338,7 @@ void loop() {
       }else if(motor_ok && data_logging[RPM] == 0){
         motor_ok = false;
         Motor_hours += (millis() - Motor_start)/(3600*1000);
-        EEPROM.update(addr,byte(Motor_hours));
+        //EEPROM.update(addr,byte(Motor_hours));
       }      
     }
   }
