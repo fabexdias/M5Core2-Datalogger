@@ -34,7 +34,7 @@ String str, file_name[2];
 String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
 bool eeprom_ok = false, sd_ok = false, temp_ok = false, motor_ok = false;
 int i = 0, j = 0, addr = 0;
-int select_time = 0, select_K, menu = 0, error_pos = 2;
+int select_time = 0, select_K, select_pos = 2, menu = 0;
 
 float Motor_hours = 0, Motor_start = 0;
 float Temp_array[MEAN_SIZE];
@@ -220,7 +220,7 @@ void setup(){
     sd_ok = false;
   }else{
     warnings("SDcard successfully mounted.");
-    sd_ok = true;
+    sd_ok = true; i = 0;
     do{
       file_name[0] = "/file" + String(i) + str + ".csv";
       i++;
@@ -230,14 +230,14 @@ void setup(){
     myFile = SD.open(file_name[0], FILE_APPEND);
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
-    myFile.printf("Hour: %2d-%2d-%2d | Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds/RPM/Barometer/MAP/MAT/Coolant/TPS/Voltage/WarmCor/BaroCorrection/Hours/Minutes/Seconds");
+    myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds");
     myFile.close();  
     myFile = SD.open(file_name[1], FILE_APPEND);
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
-    myFile.printf("Hour: %2d-%2d-%2d | Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds/RPM/Barometer/MAP/MAT/Coolant/TPS/Voltage/WarmCor/BaroCorrection/Hours/Minutes/Seconds");
+    myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds");
     myFile.close();  
   }
   
@@ -262,8 +262,6 @@ void setup(){
 void menu_0(){ // nestas funções pouco se trata para além da interface gráfica
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 4);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
-  M5.Lcd.drawString(("Voltage: " + String(1.1*analogRead(36)/4095*3.5481)),0,80,4);
-  M5.Lcd.drawString(("Voltage: " + String(analogRead(36)),0,120,4);  
 }
 
 // Função relativa ao menu 1
@@ -370,12 +368,12 @@ void writeSD(){
     myFile = SD.open(file_name[0], FILE_APPEND);
     M5.Rtc.GetTime(&RTCTime);
     print_telemetry(1);
-    myFile.printf("%2d/%2d/%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.printf("%2d,%2d,%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
     myFile.close();
     // Backup
     myFile = SD.open(file_name[1], FILE_APPEND);
     print_telemetry(1);
-    myFile.printf("%2d/%2d/%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.printf("%2d,%2d,%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
     myFile.close();    
   }
 }
@@ -415,68 +413,68 @@ void print_telemetry(int aux){
   if(aux == 0){
     M5.Lcd.drawString("Seconds = " + String(data_logging[SECONDS],0) + " s     ", 20, 154, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[SECONDS]);    
+    myFile.printf("%.2f,", data_logging[SECONDS]);    
   }
   
   data_logging[RPM] = (float) (Telemetry[6]*256 + Telemetry[7]);
   if(aux == 0){
     M5.Lcd.drawString("RPM = " + String(data_logging[RPM],0) + " RPM      ", 20, 44, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[RPM]);    
+    myFile.printf("%.2f,", data_logging[RPM]);    
   }
 
   data_logging[BARO] = (float)((float)(Telemetry[16]*256 + Telemetry[17])/10);
   if(aux == 0){
     M5.Lcd.drawString("Barometer = " + String(data_logging[BARO],1) + " kPa      ", 20, 66, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[BARO]);    
+    myFile.printf("%.2f,", data_logging[BARO]);    
   }
 
   data_logging[MAP] = (float)((float)(Telemetry[18]*256 + Telemetry[19])/10);
   if(aux == 0){
     M5.Lcd.drawString("MAP = " + String(data_logging[MAP],1) + " kPa    ", 20, 88, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[MAP]);    
+    myFile.printf("%.2f,", data_logging[MAP]);    
   }  
 
   data_logging[MAT] = (float)((float)(Telemetry[20]*256 + Telemetry[21] -32)*5/90);
   if(aux == 0){
     M5.Lcd.drawString("MAT = " + String(data_logging[MAT],1) + " C     ", 20, 110, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[MAT]);    
+    myFile.printf("%.2f,", data_logging[MAT]);    
   }    
 
   data_logging[COOLANT] = (float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90);
   if(aux == 0){
     M5.Lcd.drawString("Coolant = " + String(data_logging[COOLANT],1) + " C      ", 20, 132, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[COOLANT]);    
+    myFile.printf("%.2f,", data_logging[COOLANT]);    
   }   
 
   data_logging[TPS] = (float)((float)(Telemetry[24]*256 + Telemetry[25])/10);
   if(aux == 0){
     M5.Lcd.drawString("TPS = " + String(data_logging[TPS],1) + " %       ", 20, 22, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[TPS]);    
+    myFile.printf("%.2f,", data_logging[TPS]);    
   }
 
   data_logging[VOLTAGE] = (float)((float)(Telemetry[26]*256 + Telemetry[27])/10);
   if(aux == 0){
     M5.Lcd.drawString("Voltage = " + String(data_logging[VOLTAGE],1) + " V        ", 20, 0, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[VOLTAGE]);    
+    myFile.printf("%.2f,", data_logging[VOLTAGE]);    
   } 
   data_logging[WARMCOR] = (float)((float)(Telemetry[40]*256 + Telemetry[41])/10);
   if(aux == 0){
     M5.Lcd.drawString("Warmup = " + String(data_logging[WARMCOR],1) + " %        ", 160, 110, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[WARMCOR]);    
+    myFile.printf("%.2f,", data_logging[WARMCOR]);    
   }
   data_logging[BAROCOR] = (float)((float)(Telemetry[46]*256 + Telemetry[47])/10);
   if(aux == 0){
     M5.Lcd.drawString("BCorr = " + String(data_logging[BAROCOR],1) + " %        ", 160, 88, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f/", data_logging[BAROCOR]);    
+    myFile.printf("%.2f,", data_logging[BAROCOR]);    
   }
 }
 
@@ -504,6 +502,6 @@ float median_temp(){
 
 // Função que trata de dar cicle nas mensagens de aviso, na zona inferior do ecrã
 void warnings(String aux){
-  M5.Lcd.drawString(aux, 0, 225 - error_pos * 20, 2);
-  if(--error_pos == -1) error_pos = 2; 
+  M5.Lcd.drawString(aux, 0, 225 - select_pos * 20, 2);
+  if(--select_pos == -1) select_pos = 2; 
 }
