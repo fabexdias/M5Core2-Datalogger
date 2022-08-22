@@ -8,7 +8,7 @@
 #include <math.h>
 #include "logo_big.h"
 #include "logo_small.h"
-#define MEAN_SIZE 200
+#define MEAN_SIZE 401
 #define SERIAL_NUMBER "XXXXXXXX"
 
 File myFile;
@@ -173,6 +173,7 @@ void setup(){
   for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
         
   // Serial Config
+  Serial.begin(115200);
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
   
@@ -263,8 +264,8 @@ void menu_3(){
 void loop() {
   M5.update();
   M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small);  
-  Temps = mean_temp(((1.1*analogRead(35)/4095*3.5481)-0.5)*100);
-
+  Temps = median_temp();
+  
   float battery_voltage = M5.Axp.GetBatVoltage();
   if (battery_voltage < 3.6){warnings("Low battery.             ");}
   M5.Lcd.drawString(("#" + String(SERIAL_NUMBER)), 260, 190, 2);
@@ -320,9 +321,9 @@ void timed(){
   Time_prev = Time_now;
   Time = millis();
  
-  if((Time - Time_prev) > 300){
+  if((Time - Time_prev) > 1000){
     Serial2.write('A');
-    
+    for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = ((1.1*analogRead(35)/4095*3.5481)-0.5)*100;}
     PID_error = Tempi - Temps; 
     PID_p = K_p * PID_error;
     PID_i = PID_i + (K_i * PID_error);
@@ -394,14 +395,55 @@ void print_telemetry(int aux){
   }  
 }
 
-float mean_temp(float Temps){
+/*float median_temp(float Temps){
   float Temp_mean = 0;
   Temp_array[j] = Temps;
   if(++j == MEAN_SIZE){j=0;}
   for(i = 0; i < MEAN_SIZE; i++){Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));}
   return Temp_mean;
+}*/
+
+/*float median_temp(float Temps){
+  float Temp_aux;
+  float Temp_mean = 0;
+  Temp_array[j] = Temps;
+  //float Temp_ordem[]
+  if(++j == MEAN_SIZE){j=0;}
+  for(i = 0; i < MEAN_SIZE; i++){
+    //Temp_mean += (Temp_array[i])/((float)(MEAN_SIZE));
+    if(i == 0){Temp_ordem[i] = Temp_array[i];}
+    else if(Temp_array[i-1]<= Temp_array[i]){
+      Temp_ordem[i] = Temp_array[i];
+      }
+    else{
+      for(int k = 0;k<=i;k++){
+      Temp_aux = Temp_ordem[k];
+      Temp_ordem[k-1] = Temp_array[i];
+      Temp_ordem[i] = Temp_aux;
+      }}
+      Serial.println(Temp_ordem[i]);
+    }
+  Serial.println("NOVOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")  ;
+  return Temp_mean;
+} */
+float median_temp(){
+ float a;
+ //Temp_array[j] = Temps;
+  for (i = 0; i < MEAN_SIZE; ++i){
+    for (int k = i + 1; k < MEAN_SIZE; ++k){
+       if (Temp_array[i] > Temp_array[k]){
+           a = Temp_array[i];
+           Temp_array[i] = Temp_array[k];
+           Temp_array[k] = a;
+      }
+   }
+}
+//if(++j == MEAN_SIZE){j = 0;}
+
+return Temp_array[201];  
 }
 
+  
 void warnings(String aux){
   M5.Lcd.drawString(aux, 0, 225 - error_pos * 20, 2);
   if(--error_pos == -1) error_pos = 2; 
