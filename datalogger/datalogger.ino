@@ -344,7 +344,7 @@ void timed(){
 }
 
 void print_telemetry(int aux){
-  str = "Seconds = " + String(Telemetry[0]*256 + Telemetry[1]);
+  str = "RPM = " + String(Telemetry[6]*256 + Telemetry[7]);
   if(aux == 0){
     M5.Lcd.drawString(str, 20, 44, 2);
   }else if(aux == 1){
