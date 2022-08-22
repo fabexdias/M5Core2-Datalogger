@@ -30,13 +30,13 @@ File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name;
+String str, file_name[2];
 String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
-bool eeprom_ok = false, sd_ok = false, temp_ok = false;
+bool eeprom_ok = false, sd_ok = false, temp_ok = false, motor_ok = false;
 int i = 0, j = 0, addr = 0;
 int select_time = 0, select_K, menu = 0, error_pos = 2;
 
-float Motor_hours = 0;
+float Motor_hours = 0, Motor_start = 0;
 float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
@@ -208,6 +208,13 @@ void setup(){
   analogSetAttenuation(ADC_11db);
   
   // Memory Config
+  M5.Rtc.GetDate(&RTCDate);
+  str = "-" + String(RTCDate.Year) + "-";
+  if(0 <= RTCDate.Month && RTCDate.Month < 10){str += "0";}  
+  str += String(RTCDate.Month) + "-";
+  if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
+  str += String(RTCDate.Date);
+  
   if (!SD.begin()){  
     warnings("SDcard failed to mount.");
     sd_ok = false;
@@ -215,11 +222,25 @@ void setup(){
     warnings("SDcard successfully mounted.");
     sd_ok = true;
     do{
-      file_name = "/file" + String(i) + ".txt";
+      file_name[0] = "/file" + String(i) + str + ".csv";
       i++;
-    }while(SD.exists(file_name)); // este ciclo DO WHILE tem o objetivo de criar um novo ficheiro com continuação
-  }
+    }while(SD.exists(file_name[0])); // este ciclo DO WHILE tem o objetivo de criar um novo ficheiro com continuação
+    file_name[1] = "/file" + String(i-1) + str + "-backup.csv";
 
+    myFile = SD.open(file_name[0], FILE_APPEND);
+    M5.Rtc.GetDate(&RTCDate);
+    M5.Rtc.GetTime(&RTCTime);
+    myFile.printf("Hour: %2d-%2d-%2d | Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.println("ECUSeconds/RPM/Barometer/MAP/MAT/Coolant/TPS/Voltage/WarmCor/BaroCorrection/Hours/Minutes/Seconds");
+    myFile.close();  
+    myFile = SD.open(file_name[1], FILE_APPEND);
+    M5.Rtc.GetDate(&RTCDate);
+    M5.Rtc.GetTime(&RTCTime);
+    myFile.printf("Hour: %2d-%2d-%2d | Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.println("ECUSeconds/RPM/Barometer/MAP/MAT/Coolant/TPS/Voltage/WarmCor/BaroCorrection/Hours/Minutes/Seconds");
+    myFile.close();  
+  }
+  
   if(!EEPROM.begin(64)){ // Guarda-se na EEPROM os valores mais importantes e começa-se por inicializar devidamente as variaveis importantes
     warnings("Failed to initialise EEPROM.");
     eeprom_ok = false;
@@ -241,6 +262,7 @@ void setup(){
 void menu_0(){ // nestas funções pouco se trata para além da interface gráfica
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 4);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
+  M5.Lcd.drawString(("Voltage: " + String(1.1*analogRead(35)/4095*3.5481)),0,80,4);
 }
 
 // Função relativa ao menu 1
@@ -311,6 +333,13 @@ void loop() {
     if(bytesRecieved == 212){
       writeSD();
       if(menu == 1){print_telemetry(0);}
+      if((data_logging[RPM] > 0) && !motor_ok){
+        motor_ok = true;
+        Motor_start = millis();  
+      }else if(motor_ok && data_logging[RPM] == 0){
+        motor_ok = false;
+        Motor_hours += (millis() - Motor_start)/(3600*1000);
+      }      
     }
   }
   
@@ -335,12 +364,17 @@ void loop() {
 // A função writeSD é executada sempre que se recebe 212 bytes via Serial e guarda apenas as informações de interesse
 void writeSD(){
   if (sd_ok == true) {
-    myFile = SD.open(file_name, FILE_APPEND);
-    M5.Rtc.GetDate(&RTCDate);
+    // Ficheiro original
+    myFile = SD.open(file_name[0], FILE_APPEND);
     M5.Rtc.GetTime(&RTCTime);
-    myFile.printf("Hour: %2d-%2d-%2d Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
     print_telemetry(1);
-    myFile.close(); 
+    myFile.printf("%2d/%2d/%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.close();
+    // Backup
+    myFile = SD.open(file_name[1], FILE_APPEND);
+    print_telemetry(1);
+    myFile.printf("%2d/%2d/%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.close();    
   }
 }
 
@@ -440,7 +474,7 @@ void print_telemetry(int aux){
   if(aux == 0){
     M5.Lcd.drawString("BCorr = " + String(data_logging[BAROCOR],1) + " %        ", 160, 88, 2);
   }else if(aux == 1){
-    myFile.printf("%.2f\n", data_logging[BAROCOR]);    
+    myFile.printf("%.2f/", data_logging[BAROCOR]);    
   }
 }
 
