@@ -52,7 +52,7 @@ size_t bytesRecieved;
 byte Telemetry[212];
 String str, file_name[2], warning_str = "";
 String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
-bool eeprom_ok = false, sd_ok = false, temp_ok = true, motor_ok = false, password = false;
+bool eeprom_ok = false, sd_ok = false, temp_ok = true, motor_ok = false, serial_ok = true, password = false;
 int i = 0, j = 0, addr = 0;
 int select_time = 0, select_K, select_pos = 2, menu = 0;
 
@@ -346,14 +346,27 @@ void down_menu(){
 
 void error_handler(){
   warning_str = "";
-  if((Temps < -20 || Temps > 190) && temp_ok){
+  if((Temps < configy.CHT_MIN || Temps > configy.CHT_MAX) && temp_ok){
     warnings("Failed to read temperature.        ");
     warning_str += "Tmp ";
     temp_ok = false;
-  }else if ((Temps > -20 && Temps < 190)){temp_ok = true;}  
+  }else if ((Temps > configy.CHT_MIN && Temps < configy.CHT_MAX)){temp_ok = true;}  
 
   battery_voltage = M5.Axp.GetBatVoltage();
-  if (battery_voltage < 3.6){warnings("Low battery.             "); warning_str += "Battery ";}
+  if (battery_voltage < configy.BATTERY_MIN){warnings("Low battery.                  "); warning_str += "Battery ";}
+
+  if(data_logging[COOLANT] > configy.CHT_MAX){
+    warning_str += "CHT_OVER ";
+    warnings("Cylinder head overheated.        ");
+  }
+  if(data_logging[COOLANT] < configy.CHT_MIN && data_logging[RPM] > 2500){
+    warning_str += "CHT_UNDER "; 
+    warnings("Cylinder head underheated.        ");
+  }
+  if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){
+    warnings("Manifold air Temperature Sensor Fault.           ");
+    warning_str += "MAT ";
+  }
 
 }
 
@@ -363,7 +376,7 @@ void loop() {
   down_menu();
   timed();
   serial_stuff();
-  error_handler();
+  //error_handler();
   
   switch(menu){
     case 0:
@@ -390,21 +403,24 @@ void serial_stuff(){
       writeSD();
       warning_str = "";
       if(menu == 1){print_telemetry(0);}
-      if((data_logging[RPM] > 0) && !motor_ok){
+      if((data_logging[RPM] > configy.RPM_MIN) && !motor_ok){
         motor_ok = true;
         Motor_start = millis();  
-      }else if(motor_ok && data_logging[RPM] == 0){
+      }else if(motor_ok && data_logging[RPM] < configy.RPM_MIN){
         motor_ok = false;
-        Motor_hours += (millis() - Motor_start)/(3600*1000);
-        EEPROM.writeFloat(addr,(float_t) Motor_hours);
-        EEPROM.commit();
-        Serial.print(EEPROM.read(addr));
-      }   
+        if((millis() - Motor_start) < 30000){
+          Motor_hours += (millis() - Motor_start)/(3600*1000);
+          EEPROM.writeFloat(addr,(float_t) Motor_hours);
+          EEPROM.commit();
+          Serial.print(EEPROM.read(addr));               
+        }
+      }
     }
-  } 
+  }
+  
   if(Serial.available()>0){
     serial_commands();
-    } 
+  } 
 }
 
 // A função writeSD é executada sempre que se recebe 212 bytes via Serial e guarda apenas as informações de interesse
@@ -555,9 +571,9 @@ void warnings(String aux){
 }
 
 void serial_commands(){
-  
   String command;
   command = Serial.readStringUntil('\n');
+  if(serial_ok){Serial.println("Welcome");serial_ok = false;}
   if(command == PASSWORD || password == true){
     password = true;
     if(command == PASSWORD){Serial.println("Senha correta, por favor insira um comando.");}
