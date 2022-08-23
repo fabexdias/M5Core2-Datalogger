@@ -3,6 +3,7 @@
 #include <ESP32Time.h>
 #include <ESP32Tone.h>
 #include <ESP32PWM.h>
+#include <Preferences.h>
 #include <analogWrite.h>
 #include <EEPROM.h>
 #include <math.h>
@@ -27,6 +28,24 @@
 #define WARMCOR 8
 #define BAROCOR 9
 
++typedef struct {
+  float_t CHT_MAX;
+  float_t CHT_MIN;
+  float_t FUEL_PRESSURE_MAX;
+  float_t FUEL_PRESSURE_MIN;
+  float_t BATTERY_MAX;
+  float_t BATTERY_MIN;
+  float_t MAT_MAX;
+  float_t MAT_MIN;
+  float_t RPM_MAX;
+  float_t RPM_MIN;  
+  float_t K_P[2];
+  float_t K_I[2];
+  float_t K_D[2];
+} config_t;
+
+config_t configy = {0,0,0,0,0,0,0,0,0,0,{0,0},{0,0},{0,0}};
+Preferences prefs;
 File myFile;
 Servo myServo;
 size_t bytesRecieved;
@@ -253,6 +272,10 @@ void setup(){
     eeprom_ok = true;
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
+
+  prefs.begin("config");
+  size_t configLen = prefs.getBytesLength("config");
+  prefs.getBytes("config",(void*) &configy, configLen); // prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy)); 
   
   // Buttons & Gestures Config
   M5.BtnA.addHandler(Scroll, E_TOUCH);
