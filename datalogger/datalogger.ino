@@ -554,22 +554,23 @@ void serial_commands(){
       Serial.println("set k_d [value]"); 
       }
     else if(command == "reset hour"){
-      command.remove(0,6);
+      //command.remove(0,6);
       Serial.println(command);}
       
     else if(command == "set time"){
       Serial.println("set time");}
       
-    else if(command == "set cht min"){
-      Serial.println(command.substring(1,10));}
+    else if(command.substring(0,11) == "set cht min"){
+      String aux = (command.substring(12));
+      Serial.println(aux);}
       
-    else if(command == "set cht max"){
+    else if(command.substring(0,11) == "set cht max"){
       Serial.println("set CHT max");}
       
-    else if(command == "set mat min"){
+    else if(command.substring(0,11) == "set mat min"){
       Serial.println("set mat min");}
       
-    else if(command == "set mat max"){
+    else if(command.substring(0,11) == "set mat max"){
       Serial.println("set mat max");}
 
     else if(command == "set battery min"){
