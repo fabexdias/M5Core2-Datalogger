@@ -30,9 +30,9 @@ File myFile;
 Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
-String str, file_name[2];
+String str, file_name[2], warning_str = "";
 String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
-bool eeprom_ok = false, sd_ok = false, temp_ok = false, motor_ok = false;
+bool eeprom_ok = false, sd_ok = false, temp_ok = true, motor_ok = false;
 int i = 0, j = 0, addr = 0;
 int select_time = 0, select_K, select_pos = 2, menu = 0;
 
@@ -54,8 +54,8 @@ Gesture swipeRight("swipe right", 160, DIR_RIGHT, 30, true);
 // Função de interrupção para gestos (passa de menu em menu)
 void Swiped(Event& e){
   if(e.gesture != NULL){
-    if(String(e.gesture->getName()) == "swipe left"){if(++menu > 4){menu = 0;}}
-    else if(String(e.gesture->getName()) == "swipe right"){if(--menu < 0){menu = 4;}}
+    if(String(e.gesture->getName()) == "swipe left"){if(++menu > 3){menu = 0;}}
+    else if(String(e.gesture->getName()) == "swipe right"){if(--menu < 0){menu = 3;}}
     M5.Lcd.fillRect(0, 0, 320, 180, WHITE); // Este comando é usado sempre que é premido um botão e serve para pintar a parte do ecrã referente aos diferentes menus.
                                             // Isto é feito para que não haja strings sobrepostas nem que haja erros (por exemplo, um valor que passe de 105 para 2 ficaria 205)        
   }
@@ -194,7 +194,8 @@ void setup(){
   M5.Lcd.setTextColor(BLACK, WHITE);
   M5.Lcd.fillScreen(WHITE);
   for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
-        
+  for(i = 0; i <= BAROCOR; i++){data_logging[i] = 0;}
+
   // Serial Config
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial.begin(115200);
@@ -207,6 +208,7 @@ void setup(){
   // ADC Config  
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
+  pinMode(36, INPUT);
   
   // Memory Config
   M5.Rtc.GetDate(&RTCDate);
@@ -232,13 +234,13 @@ void setup(){
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
     myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds");
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Warnings");
     myFile.close();  
     myFile = SD.open(file_name[1], FILE_APPEND);
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
     myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds");
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Warnings");
     myFile.close();  
   }
   
@@ -311,41 +313,34 @@ void menu_3(){
   M5.Lcd.drawString((K_str[select_K] + " selected"), 40, 120, 4);   
 }
 
-// Esta função fica em loop infinito durante a execução do programa
-void loop() {
-  M5.update();
+void down_menu(){
   M5.Lcd.drawString(("#" + String(SERIAL_NUMBER)), 260, 190, 2);
   M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small); // Inserção do logo pequeno e número de série no canto inferior do ecrã
   M5.Lcd.drawString("Menu", 235, 0, 4);
-  M5.Lcd.drawString(menu_str[menu], 235, 30, 4); // Inserção de "Menu X" no canto superior do ecrã
-  
-  timed();
+  M5.Lcd.drawString(menu_str[menu], 235, 30, 4); // Inserção de "Menu X" no canto superior do ecrã  
+}
+
+void error_handler(){
+  warning_str = "";
   if((Temps < -20 || Temps > 190) && temp_ok){
     warnings("Failed to read temperature.        ");
+    warning_str += "Tmp ";
     temp_ok = false;
   }else if ((Temps > -20 && Temps < 190)){temp_ok = true;}  
 
   battery_voltage = M5.Axp.GetBatVoltage();
-  if (battery_voltage < 3.6){warnings("Low battery.             ");}
- 
-  if(Serial2.available() > 0){               
-    bytesRecieved = Serial2.readBytes(Telemetry,212);
-    if(bytesRecieved == 212){
-      writeSD();
-      if(menu == 1){print_telemetry(0);}
-      if((data_logging[RPM] >= 0) && !motor_ok){
-        motor_ok = true;
-        Motor_start = millis();  
-      }if(motor_ok && data_logging[RPM] == 0){ //trocar para igual a 0 e o if por um else if
-        motor_ok = false;
-        Motor_hours += (millis() - Motor_start)/(3600*1000);
-        EEPROM.write(addr,byte(Motor_hours));
-        EEPROM.commit();
-        Serial.print(EEPROM.read(addr));
-      }   
-        
-    }
-  }
+  if (battery_voltage < 3.6){warnings("Low battery.             "); warning_str += "Battery ";}
+
+}
+
+// Esta função fica em loop infinito durante a execução do programa
+void loop() {
+  M5.update();
+  down_menu();
+  timed();
+  serial_stuff();
+  error_handler();
+  
   switch(menu){
     case 0:
       menu_0();
@@ -364,6 +359,27 @@ void loop() {
   }
 }
 
+void serial_stuff(){
+  if(Serial2.available() > 0){               
+    bytesRecieved = Serial2.readBytes(Telemetry,212);
+    if(bytesRecieved == 212){
+      writeSD();
+      warning_str = "";
+      if(menu == 1){print_telemetry(0);}
+      if((data_logging[RPM] > 0) && !motor_ok){
+        motor_ok = true;
+        Motor_start = millis();  
+      }else if(motor_ok && data_logging[RPM] == 0){
+        motor_ok = false;
+        Motor_hours += (millis() - Motor_start)/(3600*1000);
+        EEPROM.writeFloat(addr,(float_t) Motor_hours);
+        EEPROM.commit();
+        Serial.print(EEPROM.read(addr));
+      }   
+    }
+  }  
+}
+
 // A função writeSD é executada sempre que se recebe 212 bytes via Serial e guarda apenas as informações de interesse
 void writeSD(){
   if (sd_ok == true) {
@@ -371,12 +387,14 @@ void writeSD(){
     myFile = SD.open(file_name[0], FILE_APPEND);
     M5.Rtc.GetTime(&RTCTime);
     print_telemetry(1);
-    myFile.printf("%2d,%2d,%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.printf("%2d,%2d,%2d,",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.println(warning_str);
     myFile.close();
     // Backup
     myFile = SD.open(file_name[1], FILE_APPEND);
     print_telemetry(1);
-    myFile.printf("%2d,%2d,%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.printf("%2d,%2d,%2d,",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds);
+    myFile.println(warning_str);
     myFile.close();    
   }
 }
