@@ -332,7 +332,7 @@ void loop() {
     if(bytesRecieved == 212){
       writeSD();
       if(menu == 1){print_telemetry(0);}
-      if((data_logging[RPM] > 0) && !motor_ok){
+      if((data_logging[RPM] >= 0) && !motor_ok){
         motor_ok = true;
         Motor_start = millis();  
       }else if(motor_ok && data_logging[RPM] == 0){
