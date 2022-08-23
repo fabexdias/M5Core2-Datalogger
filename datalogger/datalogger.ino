@@ -197,6 +197,7 @@ void setup(){
         
   // Serial Config
   Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
+  Serial.begin(115200);
   Serial2.setTimeout(300);
   
   // Servo Config    
@@ -335,14 +336,16 @@ void loop() {
       if((data_logging[RPM] >= 0) && !motor_ok){
         motor_ok = true;
         Motor_start = millis();  
-      }else if(motor_ok && data_logging[RPM] == 0){
+      }if(motor_ok && data_logging[RPM] == 0){ //trocar para igual a 0 e o if por um else if
         motor_ok = false;
         Motor_hours += (millis() - Motor_start)/(3600*1000);
-        //EEPROM.update(addr,byte(Motor_hours));
-      }      
+        EEPROM.write(addr,byte(Motor_hours));
+        EEPROM.commit();
+        Serial.print(EEPROM.read(addr));
+      }   
+        
     }
   }
-  
   switch(menu){
     case 0:
       menu_0();
