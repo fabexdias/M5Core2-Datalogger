@@ -11,6 +11,7 @@
 #include "logo_big.h"
 #include "logo_small.h"
 
+#define PASSWORD "senha"
 #define MEAN_SIZE 601 // Tamanho do vetor de aquisições
 #define SERIAL_NUMBER "XXXXXXXX" // Numero de série
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
@@ -32,7 +33,7 @@ size_t bytesRecieved;
 byte Telemetry[212];
 String str, file_name[2], warning_str = "";
 String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
-bool eeprom_ok = false, sd_ok = false, temp_ok = true, motor_ok = false;
+bool eeprom_ok = false, sd_ok = false, temp_ok = true, motor_ok = false, password = false;
 int i = 0, j = 0, addr = 0;
 int select_time = 0, select_K, select_pos = 2, menu = 0;
 
@@ -377,7 +378,10 @@ void serial_stuff(){
         Serial.print(EEPROM.read(addr));
       }   
     }
-  }  
+  } 
+  if(Serial.available()>0){
+    serial_commands();
+    } 
 }
 
 // A função writeSD é executada sempre que se recebe 212 bytes via Serial e guarda apenas as informações de interesse
@@ -525,4 +529,82 @@ float median_temp(){
 void warnings(String aux){
   M5.Lcd.drawString(aux, 0, 225 - select_pos * 20, 2);
   if(--select_pos == -1) select_pos = 2; 
+}
+
+void serial_commands(){
+  
+  String command;
+  float boundary;
+  command = Serial.readStringUntil('\n');
+  if(command == PASSWORD || password == true){
+    password = true;
+    if(command == PASSWORD){Serial.println("Senha correta, por favor insira um comando.");}
+    //Serial.println("Senha correta");
+    if(command == "help"){
+      Serial.println("Os seguintes comandos são válidos:");
+      Serial.println("reset hour");
+      Serial.println("set time [value]");
+      Serial.println("set cht [min,max] [value]");   
+      Serial.println("set mat [min,max] [value] ");    
+      Serial.println("set battery [min,max] [value]");   
+      Serial.println("set rpm [min,max] [value]"); 
+      Serial.println("set fuel pressure [min,max] [value]");   
+      Serial.println("set k_p [value]"); 
+      Serial.println("set k_i [value]");   
+      Serial.println("set k_d [value]"); 
+      }
+    else if(command == "reset hour"){
+      command.remove(0,6);
+      Serial.println(command);}
+      
+    else if(command == "set time"){
+      Serial.println("set time");}
+      
+    else if(command == "set cht min"){
+      Serial.println(command.substring(1,10));}
+      
+    else if(command == "set cht max"){
+      Serial.println("set CHT max");}
+      
+    else if(command == "set mat min"){
+      Serial.println("set mat min");}
+      
+    else if(command == "set mat max"){
+      Serial.println("set mat max");}
+
+    else if(command == "set battery min"){
+      Serial.println("set battery min");}
+      
+    else if(command == "set battery max"){
+      Serial.println("set battery max");}
+
+    else if(command == "set rpm min"){
+      Serial.println("set rpm min");}
+      
+    else if(command == "set rpm max"){
+      Serial.println("set rpm max");}
+
+    else if(command == "set fuel pressure min"){
+      Serial.println("set fuel pressure min");}
+      
+    else if(command == "set fuel pressure max"){
+      Serial.println("set fuel pressure max");}
+
+    else if(command == "set k_p min"){
+      Serial.println("set k_p min");}
+
+    else if(command == "set k_i min"){
+      Serial.println("set k_i min");}
+
+    else if(command == "set k_d min"){
+      Serial.println("set k_d min");}
+      
+    else if (command == PASSWORD){}
+    
+    else {
+      Serial.println("Comando Inválido");}         
+    
+  }
+  else{
+    Serial.println("Senha incorreta"); }
 }
