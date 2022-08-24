@@ -17,6 +17,8 @@
 #define SERIAL_NUMBER "XXXXXXXX" // Numero de série
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
 #define SERIAL_TIMEOUT 60000
+#define MOTOR_TIMEOUT 30000
+
 #define SECONDS 0
 #define RPM 1
 #define BARO 2
@@ -38,7 +40,7 @@ typedef struct {
   float_t MAT_MAX;
   float_t MAT_MIN;
   float_t IDEAL_TEMP;
-  float_t RPM_MIN;  
+  float_t RPM_HOURS;  
   float_t K_P[2];
   float_t K_I[2];
   float_t K_D[2];
@@ -61,7 +63,7 @@ float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
-float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, battery_voltage = 0;
+float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, Time_motor = 0, battery_voltage = 0;
 float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
@@ -290,6 +292,8 @@ void menu_0(){ // nestas funções pouco se trata para além da interface gráfi
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 4);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
   M5.Lcd.drawString(("ADC6 " + String((float) Telemetry[128]*256 + Telemetry[129])), 0, 80, 4);
+  battery_voltage = M5.Axp.GetBatVoltage();
+  M5.Lcd.drawString(("Battery " + String(battery_voltage)), 0, 120, 4);
 }
 
 // Função relativa ao menu 1
@@ -348,27 +352,28 @@ void down_menu(){
 void error_handler(){
   warning_str = "";
   if((Temps < configy.CHT_MIN || Temps > configy.CHT_MAX) && temp_ok){
-    warnings("Failed to read temperature.        ");
+    //warnings("Failed to read temperature.        ");
     warning_str += "Tmp ";
     temp_ok = false;
   }else if ((Temps > configy.CHT_MIN && Temps < configy.CHT_MAX)){temp_ok = true;}  
 
-  battery_voltage = M5.Axp.GetBatVoltage();
-  if (battery_voltage < configy.BATTERY_MIN){warnings("Low battery.                  "); warning_str += "Battery ";}
+  if (data_logging[VOLTAGE] < configy.BATTERY_MIN){
+    //warnings("Low battery.                  ");
+    warning_str += "Battery ";
+  }
 
   if(data_logging[COOLANT] > configy.CHT_MAX){
     warning_str += "CHT_OVER ";
-    warnings("Cylinder head overheated.        ");
+    //warnings("Cylinder head overheated.        ");
   }
   if(data_logging[COOLANT] < configy.CHT_MIN && data_logging[RPM] > 2500){
     warning_str += "CHT_UNDER "; 
-    warnings("Cylinder head underheated.        ");
+    //warnings("Cylinder head underheated.        ");
   }
   if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){
-    warnings("Manifold air Temperature Sensor Fault.           ");
+    //warnings("Manifold air Temperature Sensor Fault.           ");
     warning_str += "MAT ";
   }
-
 }
 
 // Esta função fica em loop infinito durante a execução do programa
@@ -377,7 +382,7 @@ void loop() {
   down_menu();
   timed();
   serial_stuff();
-  //error_handler();
+  error_handler();
   
   switch(menu){
     case 0:
@@ -404,20 +409,24 @@ void serial_stuff(){
       writeSD();
       warning_str = "";
       if(menu == 1){print_telemetry(0);}
-      if((data_logging[RPM] > configy.RPM_MIN) && !motor_ok){
+      if((data_logging[RPM] > configy.RPM_HOURS) && !motor_ok){
         motor_ok = true;
-        Motor_start = millis();  
-      }else if(motor_ok && data_logging[RPM] <= configy.RPM_MIN){
+        Time_motor = millis();
+        Motor_start = 0;
+      }else if(motor_ok && (millis() - Time_motor > MOTOR_TIMEOUT) && Motor_start == 0){
+        Motor_start = millis();
+      }else if(motor_ok && data_logging[RPM] <= configy.RPM_HOURS){
         motor_ok = false;
-        if((millis() - Motor_start) < 30000){
+        if((millis() - Motor_start) > MOTOR_TIMEOUT){
           Motor_hours += (millis() - Motor_start)/(3600*1000);
           EEPROM.writeFloat(addr,(float_t) Motor_hours);
           EEPROM.commit();
           Serial.print("Motor hours = " + String((float) EEPROM.readFloat(addr)));               
         }
-      }
+      }      
     }
   }
+  
   if((millis() - Time_serial > SERIAL_TIMEOUT) && password == true){
     password = false;
     Serial.println("Session timed out, login again please.");
@@ -452,9 +461,8 @@ void timed(){
   float aux;
   int k = 0;
   Time_prev = Time_now;
-  Time = millis();
- 
-  if((Time - Time_prev) > SAMPLE_TIME){
+
+  if((millis() - Time_prev) > SAMPLE_TIME){
     Serial2.write('A'); // Isto serve para requesitar dados à centralina 
     
     Temps = median_temp(); // Leitura da temperatura com filtro de mediana
@@ -580,7 +588,7 @@ void serial_commands(){
   command = Serial.readStringUntil('\n');
   
   if(serial_ok){
-    Serial.println("------------------------------------------------------------");
+    Serial.println("---------------------------------------------------------------------------------------------");
     Serial.println("Welcome! Please login.");
     serial_ok = false;
   }
@@ -589,31 +597,31 @@ void serial_commands(){
     password = true;
     Time_serial = millis();
     Serial.println("Login succefully, please use a command.");
-    Serial.println("------------------------------------------------------------");
+    Serial.println("---------------------------------------------------------------------------------------------");
   }else if(password == false){
     Serial.println("Wrong password.");
-    Serial.println("------------------------------------------------------------");
+    Serial.println("---------------------------------------------------------------------------------------------");
   }
   
   if(password == true){
     Time_serial = millis();
     if(command == "help"){
       Serial.println("Valid command:");
-      Serial.println("reset hour");
-      Serial.println("set time [hours] [minutes] [seconds] (Ex: set time 09 31 03)"); //por unidades em tudo,condicionais e para tirar a senha
-      Serial.println("set date [year] [month] [day] (Ex: set date 2022 08 24)");
-      Serial.println("set cht [min,max] [value]");   
-      Serial.println("set mat [min,max] [value] ");    
-      Serial.println("set battery [min,max] [value]");   
-      Serial.println("set rpm [min,max] [value]"); 
-      Serial.println("set idealtemperature [value]"); 
-      Serial.println("set fuelpressure [min,max] [value]");   
-      Serial.println("set k_p [servo1/servo2] [value]"); 
-      Serial.println("set k_i [servo1/servo2] [value]");   
-      Serial.println("set k_d [servo1/servo2] [value]"); 
-      Serial.println("see parameters");
-      Serial.println("save config (use only at the end of the configuration)");
-      Serial.println("------------------------------------------------------------");      
+      Serial.println("reset hour - Reset motor clock to 0");
+      Serial.println("set time [hours] [minutes] [seconds] - Set RTC hours (Ex: set time 09 31 03)"); //por unidades em tudo,condicionais e para tirar a senha
+      Serial.println("set date [year] [month] [day] - Set RTC date (Ex: set date 2022 08 24)");
+      Serial.println("set cht [min,max] [value] - Set cylinder head temperature min or max by a given value");   
+      Serial.println("set mat [min,max] [value] - Set manifold air temperature min or max by a given value");    
+      Serial.println("set battery [min,max] [value] - Set battery min or max by a given value");   
+      Serial.println("set rpm min [value] - Set RPM min value for which the motor clock start counting"); 
+      Serial.println("set idealtemperature [value] - Set the ideal temperature for which the motor should operate"); 
+      Serial.println("set fuelpressure [min,max] [value] - Set fuel pressure min or max by a given value");   
+      Serial.println("set k_p [servo1/servo2] [value] - Set Kp constant for servo 1 or 2 by a given value"); 
+      Serial.println("set k_i [servo1/servo2] [value] - Set Ki constant for servo 1 or 2 by a given value");   
+      Serial.println("set k_d [servo1/servo2] [value] - Set Kd constant for servo 1 or 2 by a given value"); 
+      Serial.println("see parameters - Expose the saved parameters");
+      Serial.println("save config - Saves configuration values in memory (use only at the end of the configuration)");
+      Serial.println("---------------------------------------------------------------------------------------------");      
     }
     else if(command == "reset hour"){
       Motor_hours = 0;
@@ -658,14 +666,10 @@ void serial_commands(){
       Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");}
 
     else if(command.substring(0,11) == "set rpm min"){
-      configy.RPM_MIN = (command.substring(12)).toFloat();
-      Serial.println("RPM min = " + String(configy.RPM_MIN) + " RPM");}
+      configy.RPM_HOURS = (command.substring(12)).toFloat();
+      Serial.println("RPM min = " + String(configy.RPM_HOURS) + " RPM");}
       
-  /*  else if(command.substring(0,11) == "set rpm max"){
-      configy.RPM_MAX = (command.substring(12)).toFloat();
-      Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");} */
-
-      else if(command.substring(0,20) == "set idealtemperature"){
+    else if(command.substring(0,20) == "set idealtemperature"){
       configy.IDEAL_TEMP = (command.substring(21)).toFloat();
       Serial.println("Idealtemperature  = " + String(configy.IDEAL_TEMP) + " C");}
 
@@ -701,15 +705,14 @@ void serial_commands(){
       configy.K_D[1] = (command.substring(15)).toFloat();
       Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));}
     else if(command.substring(0,14) == "see parameters"){
-      Serial.println("------------------------------------------------------------");   
+      Serial.println("---------------------------------------------------------------------------------------------");
       Serial.println("CHT min = " +String(configy.CHT_MIN)+ " C");
       Serial.println("CHT max = " + String(configy.CHT_MAX)+ " C");
       Serial.println("MAT min = " + String(configy.MAT_MIN)+ " C"); 
       Serial.println("MAT max = " + String(configy.MAT_MAX)+ " C");
       Serial.println("Battery min = " + String(configy.BATTERY_MIN) + " V");
       Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");
-      Serial.println("RPM min = " + String(configy.RPM_MIN) + " RPM");
-      //Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");
+      Serial.println("RPM min (motor clock) = " + String(configy.RPM_HOURS) + " RPM");
       Serial.println("Idealtemperature = " + String(configy.IDEAL_TEMP) + " C");
       Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN) + " bar");
       Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX) + " bar");
@@ -722,24 +725,23 @@ void serial_commands(){
     }
     else if(command.substring(0,11) == "save config"){
       prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy));
-      Serial.println("------------------------------------------------------------");   
-      Serial.println("CHT min = " +String(configy.CHT_MIN));
-      Serial.println("CHT max = " + String(configy.CHT_MAX));
-      Serial.println("MAT min = " + String(configy.MAT_MIN)); 
-      Serial.println("MAT max = " + String(configy.MAT_MAX));
-      Serial.println("Battery min = " + String(configy.BATTERY_MIN));
-      Serial.println("Battery max = " + String(configy.BATTERY_MAX));
-      Serial.println("RPM min = " + String(configy.RPM_MIN));
-     // Serial.println("RPM max = " + String(configy.RPM_MAX));
-      Serial.println("Idealtemperature = " + String(configy.IDEAL_TEMP));
-      Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN));
-      Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX));
+      Serial.println("---------------------------------------------------------------------------------------------");
+      Serial.println("CHT min = " +String(configy.CHT_MIN)+ " C");
+      Serial.println("CHT max = " + String(configy.CHT_MAX)+ " C");
+      Serial.println("MAT min = " + String(configy.MAT_MIN)+ " C"); 
+      Serial.println("MAT max = " + String(configy.MAT_MAX)+ " C");
+      Serial.println("Battery min = " + String(configy.BATTERY_MIN) + " V");
+      Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");
+      Serial.println("RPM min (motor clock) = " + String(configy.RPM_HOURS) + " RPM");
+      Serial.println("Idealtemperature = " + String(configy.IDEAL_TEMP) + " C");
+      Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN) + " bar");
+      Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX) + " bar");
       Serial.println("k_p (servo 1) = " + String(configy.K_P[0]));
       Serial.println("k_i (servo 1) = " + String(configy.K_I[0]));
       Serial.println("k_d (servo 1) = " + String(configy.K_D[0]));
       Serial.println("k_p (servo 2) = " + String(configy.K_P[1]));
       Serial.println("k_i (servo 2) = " + String(configy.K_I[1]));
-      Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));
+      Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));  
       Serial.println("Configuration saved.");}
      
     else if (command == PASSWORD){}
