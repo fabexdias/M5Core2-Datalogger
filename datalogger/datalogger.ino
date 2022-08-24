@@ -37,7 +37,7 @@ typedef struct {
   float_t BATTERY_MIN;
   float_t MAT_MAX;
   float_t MAT_MIN;
-  float_t RPM_MAX;
+  float_t IDEAL_TEMP;
   float_t RPM_MIN;  
   float_t K_P[2];
   float_t K_I[2];
@@ -289,6 +289,7 @@ void setup(){
 void menu_0(){ // nestas funções pouco se trata para além da interface gráfica
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 4);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
+  M5.Lcd.drawString(("ADC6 " + String((float) Telemetry[128]*256 + Telemetry[129])), 0, 80, 4);
 }
 
 // Função relativa ao menu 1
@@ -605,6 +606,7 @@ void serial_commands(){
       Serial.println("set mat [min,max] [value] ");    
       Serial.println("set battery [min,max] [value]");   
       Serial.println("set rpm [min,max] [value]"); 
+      Serial.println("set idealtemperature [value]"); 
       Serial.println("set fuelpressure [min,max] [value]");   
       Serial.println("set k_p [servo1/servo2] [value]"); 
       Serial.println("set k_i [servo1/servo2] [value]");   
@@ -659,9 +661,13 @@ void serial_commands(){
       configy.RPM_MIN = (command.substring(12)).toFloat();
       Serial.println("RPM min = " + String(configy.RPM_MIN) + " RPM");}
       
-    else if(command.substring(0,11) == "set rpm max"){
+  /*  else if(command.substring(0,11) == "set rpm max"){
       configy.RPM_MAX = (command.substring(12)).toFloat();
-      Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");}
+      Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");} */
+
+      else if(command.substring(0,20) == "set idealtemperature"){
+      configy.IDEAL_TEMP = (command.substring(21)).toFloat();
+      Serial.println("Idealtemperature  = " + String(configy.IDEAL_TEMP) + " C");}
 
     else if(command.substring(0,20) == "set fuelpressure min"){
       configy.FUEL_PRESSURE_MIN = (command.substring(21)).toFloat();
@@ -703,7 +709,8 @@ void serial_commands(){
       Serial.println("Battery min = " + String(configy.BATTERY_MIN) + " V");
       Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");
       Serial.println("RPM min = " + String(configy.RPM_MIN) + " RPM");
-      Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");
+      //Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");
+      Serial.println("Idealtemperature = " + String(configy.IDEAL_TEMP) + " C");
       Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN) + " bar");
       Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX) + " bar");
       Serial.println("k_p (servo 1) = " + String(configy.K_P[0]));
@@ -723,7 +730,8 @@ void serial_commands(){
       Serial.println("Battery min = " + String(configy.BATTERY_MIN));
       Serial.println("Battery max = " + String(configy.BATTERY_MAX));
       Serial.println("RPM min = " + String(configy.RPM_MIN));
-      Serial.println("RPM max = " + String(configy.RPM_MAX));
+     // Serial.println("RPM max = " + String(configy.RPM_MAX));
+      Serial.println("Idealtemperature = " + String(configy.IDEAL_TEMP));
       Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN));
       Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX));
       Serial.println("k_p (servo 1) = " + String(configy.K_P[0]));
