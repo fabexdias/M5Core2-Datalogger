@@ -16,7 +16,7 @@
 #define MEAN_SIZE 601 // Tamanho do vetor de aquisições
 #define SERIAL_NUMBER "XXXXXXXX" // Numero de série
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
-
+#define SERIAL_TIMEOUT 60000
 #define SECONDS 0
 #define RPM 1
 #define BARO 2
@@ -61,7 +61,7 @@ float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
-float Time_now = 0, Time_prev = 0, Time = 0, battery_voltage = 0;
+float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, battery_voltage = 0;
 float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
@@ -217,8 +217,8 @@ void setup(){
   for(i = 0; i <= BAROCOR; i++){data_logging[i] = 0;}
 
   // Serial Config
-  Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial.begin(115200);
+  Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
   
   // Servo Config    
@@ -254,13 +254,13 @@ void setup(){
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
     myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Warnings");
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Faults");
     myFile.close();  
     myFile = SD.open(file_name[1], FILE_APPEND);
     M5.Rtc.GetDate(&RTCDate);
     M5.Rtc.GetTime(&RTCTime);
     myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Warnings");
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Faults");
     myFile.close();  
   }
   
@@ -406,18 +406,22 @@ void serial_stuff(){
       if((data_logging[RPM] > configy.RPM_MIN) && !motor_ok){
         motor_ok = true;
         Motor_start = millis();  
-      }else if(motor_ok && data_logging[RPM] < configy.RPM_MIN){
+      }else if(motor_ok && data_logging[RPM] <= configy.RPM_MIN){
         motor_ok = false;
         if((millis() - Motor_start) < 30000){
           Motor_hours += (millis() - Motor_start)/(3600*1000);
           EEPROM.writeFloat(addr,(float_t) Motor_hours);
           EEPROM.commit();
-          Serial.print(EEPROM.read(addr));               
+          Serial.print("Motor hours = " + String((float) EEPROM.readFloat(addr)));               
         }
       }
     }
   }
-  
+  if((millis() - Time_serial > SERIAL_TIMEOUT) && password == true){
+    password = false;
+    Serial.println("Session timed out, login again please.");
+    Serial.println("------------------------------------------------------------");
+  }
   if(Serial.available()>0){
     serial_commands();
   } 
@@ -573,25 +577,42 @@ void warnings(String aux){
 void serial_commands(){
   String command;
   command = Serial.readStringUntil('\n');
-  if(serial_ok){Serial.println("Welcome");serial_ok = false;}
-  if(command == PASSWORD || password == true){
+  
+  if(serial_ok){
+    Serial.println("------------------------------------------------------------");
+    Serial.println("Welcome! Please login.");
+    serial_ok = false;
+  }
+  
+  if(command == PASSWORD){
     password = true;
-    if(command == PASSWORD){Serial.println("Senha correta, por favor insira um comando.");}
-    //Serial.println("Senha correta");
+    Time_serial = millis();
+    Serial.println("Login succefully, please use a command.");
+    Serial.println("------------------------------------------------------------");
+  }else if(password == false){
+    Serial.println("Wrong password.");
+    Serial.println("------------------------------------------------------------");
+  }
+  
+  if(password == true){
+    Time_serial = millis();
     if(command == "help"){
-      Serial.println("Os seguintes comandos são válidos:");
+      Serial.println("Valid command:");
       Serial.println("reset hour");
-      Serial.println("set time [hours] [minutes] [seconds] (Ex: set time 16 49 24)"); //por unidades em tudo,condicionais e para tirar a senha
-      Serial.println("set date [year] [month] [day] (Ex: set date 2022 12 24)");
+      Serial.println("set time [hours] [minutes] [seconds] (Ex: set time 09 31 03)"); //por unidades em tudo,condicionais e para tirar a senha
+      Serial.println("set date [year] [month] [day] (Ex: set date 2022 08 24)");
       Serial.println("set cht [min,max] [value]");   
       Serial.println("set mat [min,max] [value] ");    
       Serial.println("set battery [min,max] [value]");   
       Serial.println("set rpm [min,max] [value]"); 
-      Serial.println("set fuel pressure [min,max] [value]");   
+      Serial.println("set fuelpressure [min,max] [value]");   
       Serial.println("set k_p [servo1/servo2] [value]"); 
       Serial.println("set k_i [servo1/servo2] [value]");   
       Serial.println("set k_d [servo1/servo2] [value]"); 
-      }
+      Serial.println("see parameters");
+      Serial.println("save config (use only at the end of the configuration)");
+      Serial.println("------------------------------------------------------------");      
+    }
     else if(command == "reset hour"){
       Motor_hours = 0;
       Serial.println("Flight Hours = " + String(Motor_hours));}
@@ -612,43 +633,43 @@ void serial_commands(){
       
     else if(command.substring(0,11) == "set cht min"){
       configy.CHT_MIN = (command.substring(12)).toFloat();
-      Serial.println("CHT min = " +String(configy.CHT_MIN));}
+      Serial.println("CHT min = " +String(configy.CHT_MIN)+ " C");}
       
     else if(command.substring(0,11) == "set cht max"){
       configy.CHT_MAX = (command.substring(12)).toFloat();
-      Serial.println("CHT max = " + String(configy.CHT_MAX));}
+      Serial.println("CHT max = " + String(configy.CHT_MAX)+ " C");}
       
     else if(command.substring(0,11) == "set mat min"){
       configy.MAT_MIN = (command.substring(12)).toFloat();
-      Serial.println("MAT min = " + String(configy.MAT_MIN));}
+      Serial.println("MAT min = " + String(configy.MAT_MIN)+ " C");}
       
     else if(command.substring(0,11) == "set mat max"){
       configy.MAT_MAX = (command.substring(12)).toFloat();
-      Serial.println("MAT max = " + String(configy.MAT_MAX));}
+      Serial.println("MAT max = " + String(configy.MAT_MAX)+ " C");}
 
     else if(command.substring(0,15) == "set battery min"){
       configy.BATTERY_MIN = (command.substring(16)).toFloat();
-      Serial.println("Battery min = " + String(configy.BATTERY_MIN));}
+      Serial.println("Battery min = " + String(configy.BATTERY_MIN) + " V");}
       
     else if(command.substring(0,15) == "set battery max"){
       configy.BATTERY_MAX = (command.substring(16)).toFloat();
-      Serial.println("Battery max = " + String(configy.BATTERY_MAX));}
+      Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");}
 
     else if(command.substring(0,11) == "set rpm min"){
       configy.RPM_MIN = (command.substring(12)).toFloat();
-      Serial.println("RPM min = " + String(configy.RPM_MIN));}
+      Serial.println("RPM min = " + String(configy.RPM_MIN) + " RPM");}
       
     else if(command.substring(0,11) == "set rpm max"){
       configy.RPM_MAX = (command.substring(12)).toFloat();
-      Serial.println("RPM max = " + String(configy.RPM_MAX));}
+      Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");}
 
-    else if(command.substring(0,21) == "set fuel pressure min"){
-      configy.FUEL_PRESSURE_MIN = (command.substring(22)).toFloat();
-      Serial.println("Fuel pressure min = " + String(configy.FUEL_PRESSURE_MIN));}
+    else if(command.substring(0,20) == "set fuelpressure min"){
+      configy.FUEL_PRESSURE_MIN = (command.substring(21)).toFloat();
+      Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN) + " bar");}
       
-    else if(command.substring(0,21) == "set fuel pressure max"){
-      configy.FUEL_PRESSURE_MAX = (command.substring(22)).toFloat();
-      Serial.println("Fuel pressure max = " + String(configy.FUEL_PRESSURE_MAX));}
+    else if(command.substring(0,20) == "set fuelpressure max"){
+      configy.FUEL_PRESSURE_MAX = (command.substring(21)).toFloat();
+      Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX) + " bar");}
 
     else if(command.substring(0,14) == "set k_p servo1"){
       configy.K_P[0] = (command.substring(15)).toFloat();
@@ -673,13 +694,48 @@ void serial_commands(){
     else if(command.substring(0,14) == "set k_d servo2"){
       configy.K_D[1] = (command.substring(15)).toFloat();
       Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));}
-      
+    else if(command.substring(0,14) == "see parameters"){
+      Serial.println("------------------------------------------------------------");   
+      Serial.println("CHT min = " +String(configy.CHT_MIN)+ " C");
+      Serial.println("CHT max = " + String(configy.CHT_MAX)+ " C");
+      Serial.println("MAT min = " + String(configy.MAT_MIN)+ " C"); 
+      Serial.println("MAT max = " + String(configy.MAT_MAX)+ " C");
+      Serial.println("Battery min = " + String(configy.BATTERY_MIN) + " V");
+      Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");
+      Serial.println("RPM min = " + String(configy.RPM_MIN) + " RPM");
+      Serial.println("RPM max = " + String(configy.RPM_MAX) + " RPM");
+      Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN) + " bar");
+      Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX) + " bar");
+      Serial.println("k_p (servo 1) = " + String(configy.K_P[0]));
+      Serial.println("k_i (servo 1) = " + String(configy.K_I[0]));
+      Serial.println("k_d (servo 1) = " + String(configy.K_D[0]));
+      Serial.println("k_p (servo 2) = " + String(configy.K_P[1]));
+      Serial.println("k_i (servo 2) = " + String(configy.K_I[1]));
+      Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));      
+    }
+    else if(command.substring(0,11) == "save config"){
+      prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy));
+      Serial.println("------------------------------------------------------------");   
+      Serial.println("CHT min = " +String(configy.CHT_MIN));
+      Serial.println("CHT max = " + String(configy.CHT_MAX));
+      Serial.println("MAT min = " + String(configy.MAT_MIN)); 
+      Serial.println("MAT max = " + String(configy.MAT_MAX));
+      Serial.println("Battery min = " + String(configy.BATTERY_MIN));
+      Serial.println("Battery max = " + String(configy.BATTERY_MAX));
+      Serial.println("RPM min = " + String(configy.RPM_MIN));
+      Serial.println("RPM max = " + String(configy.RPM_MAX));
+      Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN));
+      Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX));
+      Serial.println("k_p (servo 1) = " + String(configy.K_P[0]));
+      Serial.println("k_i (servo 1) = " + String(configy.K_I[0]));
+      Serial.println("k_d (servo 1) = " + String(configy.K_D[0]));
+      Serial.println("k_p (servo 2) = " + String(configy.K_P[1]));
+      Serial.println("k_i (servo 2) = " + String(configy.K_I[1]));
+      Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));
+      Serial.println("Configuration saved.");}
+     
     else if (command == PASSWORD){}
-    
     else {
-      Serial.println("Comando Inválido");}         
-    
+      Serial.println("Wrong command.");}         
   }
-  else{
-    Serial.println("Senha incorreta"); }
 }
