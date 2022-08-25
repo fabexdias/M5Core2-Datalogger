@@ -53,7 +53,7 @@ Servo myServo;
 size_t bytesRecieved;
 byte Telemetry[212];
 String str, file_name[2], warning_str = "";
-String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial","  RTC","   PID","      4"};
+String date_str[6] = {"Hours", "Minutes", "Seconds", "Year", "Month", "Day"}, K_str[3] = {"Kp", "Ki", "Kd"}, menu_str[] = {"Temps","Serial"," RTC"," PID"};
 bool eeprom_ok = false, sd_ok = false, temp_ok = true, motor_ok = false, serial_ok = true, password = false;
 int i = 0, j = 0, addr = 0;
 int select_time = 0, select_K, select_pos = 2, menu = 0;
@@ -215,6 +215,8 @@ void setup(){
   delay(4000);
   M5.Lcd.setTextColor(BLACK, WHITE);
   M5.Lcd.fillScreen(WHITE);
+  M5.Lcd.setTextWrap(true, true);
+  M5.Lcd.setTextSize(2);
   for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
   for(i = 0; i <= BAROCOR; i++){data_logging[i] = 0;}
 
@@ -289,24 +291,25 @@ void setup(){
 
 // Função relativa ao menu 0
 void menu_0(){ // nestas funções pouco se trata para além da interface gráfica
-  M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 4);
-  M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 4);
-  M5.Lcd.drawString(("ADC6 " + String((float) Telemetry[128]*256 + Telemetry[129])), 0, 80, 4);
+  M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 2);
+  M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 2);
+  if((((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381) < 0){str = "0.00";}else{str = String(((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381);}
+  M5.Lcd.drawString(("ADC6: " + str), 0, 80, 2);
   battery_voltage = M5.Axp.GetBatVoltage();
-  M5.Lcd.drawString(("Battery " + String(battery_voltage)), 0, 120, 4);
+  M5.Lcd.drawString(("Battery: " + String(battery_voltage)), 0, 120, 2);
 }
 
 // Função relativa ao menu 1
 void menu_1(){
-  M5.Lcd.drawString("RPM =", 20, 44, 2);
-  M5.Lcd.drawString("Barometer =", 20, 66, 2);
-  M5.Lcd.drawString("MAP =", 20, 88, 2);
-  M5.Lcd.drawString("MAT =", 20, 110, 2);
-  M5.Lcd.drawString("Coolant =", 20, 132, 2);
-  M5.Lcd.drawString("Voltage =", 20, 0, 2);
-  M5.Lcd.drawString("TPS =", 20, 22, 2);
-  M5.Lcd.drawString("Warmup =", 160, 110, 2);
-  M5.Lcd.drawString("BCorr =", 160, 88, 2);
+  M5.Lcd.drawString("RPM=", 1, 44, 1);
+  M5.Lcd.drawString("Barometer=", 1, 66, 1);
+  M5.Lcd.drawString("MAP=", 1, 88, 1);
+  M5.Lcd.drawString("MAT=", 1, 110, 1);
+  M5.Lcd.drawString("Coolant=", 1, 132, 1);
+  M5.Lcd.drawString("Voltage=", 1, 0, 1);
+  M5.Lcd.drawString("TPS=", 1, 22, 1);
+  M5.Lcd.drawString("Warmup=", 160, 110, 1);
+  M5.Lcd.drawString("BCorr=", 160, 88, 1);
 }
 
 // Função relativa ao menu 2
@@ -323,30 +326,30 @@ void menu_2(){
   str += "-";
   if(0 <= RTCTime.Seconds && RTCTime.Seconds < 10){str += "0";}  
   str += String(RTCTime.Seconds);
-  M5.Lcd.drawString(str, 0, 40, 4); 
+  M5.Lcd.drawString(str, 0, 40, 2); 
   str = "Date: " + String(RTCDate.Year) + "-";
   if(0 <= RTCDate.Month && RTCDate.Month < 10){str += "0";}  
   str += String(RTCDate.Month);   
   str += "-";
   if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
   str += String(RTCDate.Date); 
-  M5.Lcd.drawString(str, 0, 0, 4);
-  M5.Lcd.drawString((date_str[select_time] + " selected"), 40, 120, 4);
+  M5.Lcd.drawString(str, 0, 0, 2);
+  M5.Lcd.drawString((date_str[select_time] + " selected"), 40, 120, 2);
 }
 
 // Função relativa ao menu 3
 void menu_3(){
-  M5.Lcd.drawString(("Kp: " + String(K_p)), 0, 0, 4);   
-  M5.Lcd.drawString(("Ki: " + String(K_i)), 0, 40, 4); 
-  M5.Lcd.drawString(("Kd: " + String(K_d)), 0, 80, 4);  
-  M5.Lcd.drawString((K_str[select_K] + " selected"), 40, 120, 4);   
+  M5.Lcd.drawString(("Kp: " + String(K_p)), 0, 0, 2);   
+  M5.Lcd.drawString(("Ki: " + String(K_i)), 0, 40, 2); 
+  M5.Lcd.drawString(("Kd: " + String(K_d)), 0, 80, 2);  
+  M5.Lcd.drawString((K_str[select_K] + " selected"), 40, 120, 2);   
 }
 
 void down_menu(){
-  M5.Lcd.drawString(("#" + String(SERIAL_NUMBER)), 260, 190, 2);
+  M5.Lcd.setTextSize(1); M5.Lcd.drawString(("#" + String(SERIAL_NUMBER)), 240, 190, 2);  M5.Lcd.setTextSize(2);
   M5.Lcd.pushImage(220,210,100,30, (uint16_t *) logo_small); // Inserção do logo pequeno e número de série no canto inferior do ecrã
-  M5.Lcd.drawString("Menu", 235, 0, 4);
-  M5.Lcd.drawString(menu_str[menu], 235, 30, 4); // Inserção de "Menu X" no canto superior do ecrã  
+  M5.Lcd.drawString("Menu", 235, 0, 2);
+  M5.Lcd.drawString(menu_str[menu], 235, 30, 2); // Inserção de "Menu X" no canto superior do ecrã  
 }
 
 void error_handler(){
@@ -488,68 +491,68 @@ void timed(){
 void print_telemetry(int aux){
   data_logging[SECONDS] = (float) (Telemetry[0]*256 + Telemetry[1]);
   if(aux == 0){
-    M5.Lcd.drawString("Seconds = " + String(data_logging[SECONDS],0) + " s     ", 20, 154, 2);
+    M5.Lcd.drawString(" Seconds= " + String(data_logging[SECONDS],0) + " s     ", 1, 154, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[SECONDS]);    
   }
   
   data_logging[RPM] = (float) (Telemetry[6]*256 + Telemetry[7]);
   if(aux == 0){
-    M5.Lcd.drawString("RPM = " + String(data_logging[RPM],0) + " RPM      ", 20, 44, 2);
+    M5.Lcd.drawString(" RPM= " + String(data_logging[RPM],0) + " RPM      ", 1, 44, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[RPM]);    
   }
 
   data_logging[BARO] = (float)((float)(Telemetry[16]*256 + Telemetry[17])/10);
   if(aux == 0){
-    M5.Lcd.drawString("Barometer = " + String(data_logging[BARO],1) + " kPa      ", 20, 66, 2);
+    M5.Lcd.drawString(" Barometer= " + String(data_logging[BARO],1) + " kPa      ", 1, 66, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[BARO]);    
   }
 
   data_logging[MAP] = (float)((float)(Telemetry[18]*256 + Telemetry[19])/10);
   if(aux == 0){
-    M5.Lcd.drawString("MAP = " + String(data_logging[MAP],1) + " kPa    ", 20, 88, 2);
+    M5.Lcd.drawString(" MAP= " + String(data_logging[MAP],1) + " kPa    ", 1, 88, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[MAP]);    
   }  
 
   data_logging[MAT] = (float)((float)(Telemetry[20]*256 + Telemetry[21] -32)*5/90);
   if(aux == 0){
-    M5.Lcd.drawString("MAT = " + String(data_logging[MAT],1) + " C     ", 20, 110, 2);
+    M5.Lcd.drawString(" MAT= " + String(data_logging[MAT],1) + " C     ", 1, 110, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[MAT]);    
   }    
 
   data_logging[COOLANT] = (float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90);
   if(aux == 0){
-    M5.Lcd.drawString("Coolant = " + String(data_logging[COOLANT],1) + " C      ", 20, 132, 2);
+    M5.Lcd.drawString(" Coolant= " + String(data_logging[COOLANT],1) + " C      ", 1, 132, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[COOLANT]);    
   }   
 
   data_logging[TPS] = (float)((float)(Telemetry[24]*256 + Telemetry[25])/10);
   if(aux == 0){
-    M5.Lcd.drawString("TPS = " + String(data_logging[TPS],1) + " %       ", 20, 22, 2);
+    M5.Lcd.drawString(" TPS= " + String(data_logging[TPS],1) + " %       ", 1, 22, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[TPS]);    
   }
 
   data_logging[VOLTAGE] = (float)((float)(Telemetry[26]*256 + Telemetry[27])/10);
   if(aux == 0){
-    M5.Lcd.drawString("Voltage = " + String(data_logging[VOLTAGE],1) + " V        ", 20, 0, 2);
+    M5.Lcd.drawString(" Voltage= " + String(data_logging[VOLTAGE],1) + " V        ", 1, 0, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[VOLTAGE]);    
   } 
   data_logging[WARMCOR] = (float)((float)(Telemetry[40]*256 + Telemetry[41])/10);
   if(aux == 0){
-    M5.Lcd.drawString("Warmup = " + String(data_logging[WARMCOR],1) + " %        ", 160, 110, 2);
+    M5.Lcd.drawString(" Warmup= " + String(data_logging[WARMCOR],1) + " %        ", 160, 110, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[WARMCOR]);    
   }
   data_logging[BAROCOR] = (float)((float)(Telemetry[46]*256 + Telemetry[47])/10);
   if(aux == 0){
-    M5.Lcd.drawString("BCorr = " + String(data_logging[BAROCOR],1) + " %        ", 160, 88, 2);
+    M5.Lcd.drawString(" BCorr= " + String(data_logging[BAROCOR],1) + " %        ", 160, 88, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[BAROCOR]);    
   }
@@ -579,8 +582,10 @@ float median_temp(){
 
 // Função que trata de dar cicle nas mensagens de aviso, na zona inferior do ecrã
 void warnings(String aux){
+  M5.Lcd.setTextSize(1);
   M5.Lcd.drawString(aux, 0, 225 - select_pos * 20, 2);
   if(--select_pos == -1) select_pos = 2; 
+  M5.Lcd.setTextSize(2);
 }
 
 void serial_commands(){
