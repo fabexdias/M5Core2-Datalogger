@@ -277,7 +277,7 @@ void setup(){
     Motor_hours = (float) EEPROM.readFloat(addr);
   }
 
-  prefs.begin("config");
+  prefs.begin("config"); // Biblioteca de preferência, todos os que é necessário guardar em cada dispositivo
   size_t configLen = prefs.getBytesLength("config");
   prefs.getBytes("config",(void*) &configy, configLen); // prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy)); 
   
