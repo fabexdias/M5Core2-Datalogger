@@ -17,14 +17,15 @@
 #define SERIAL_NUMBER "XXXXXXXX" // Numero de série
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
 #define SERIAL_TIMEOUT 60000
-#define MOTOR_TIMEOUT 30000
+#define MOTOR_TIMEOUT 30000 // Tempo de funcionamento do motor a partir do qual se conta o tempo de vida
 
+// Auxiliares para o vetor data_logging
 #define SECONDS 0
 #define RPM 1
 #define BARO 2
 #define MAP 3
 #define MAT 4
-#define COOLANT 5
+#define CHT 5
 #define TPS 6
 #define VOLTAGE 7
 #define WARMCOR 8
@@ -44,7 +45,7 @@ typedef struct {
   float_t K_P[2];
   float_t K_I[2];
   float_t K_D[2];
-} config_t;
+} config_t; // estrutura de configuração
 
 config_t configy = {0,0,0,0,0,0,0,0,0,0,{0,0},{0,0},{0,0}};
 Preferences prefs;
@@ -68,6 +69,11 @@ float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
 RTC_DateTypeDef RTCDate;
+
+
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------PARTE GRÁFICA----------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 // Gestos para passar de menu em menu
 Gesture swipeLeft("swipe left", 160, DIR_LEFT, 30, true);
@@ -205,90 +211,6 @@ void ParamEvent(Event& e) {
   }
 }
 
-// Função de setup corre uma vez, quando o código é inicializado
-void setup(){
-  M5.begin();
-  M5.Rtc.begin();
-
-  // Random inicialization
-  M5.Lcd.pushImage(0,0,320,240, (uint16_t *) logo_big);
-  delay(4000);
-  M5.Lcd.setTextColor(BLACK, WHITE);
-  M5.Lcd.fillScreen(WHITE);
-  M5.Lcd.setTextWrap(true, true);
-  M5.Lcd.setTextSize(2);
-  for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
-  for(i = 0; i <= BAROCOR; i++){data_logging[i] = 0;}
-
-  // Serial Config
-  Serial.begin(115200);
-  Serial2.begin(115200 , SERIAL_8N1, 32 , 33 );
-  Serial2.setTimeout(300);
-  
-  // Servo Config    
-  myServo.setPeriodHertz(50);
-  myServo.attach(26);
-  
-  // ADC Config  
-  analogReadResolution(12);
-  analogSetAttenuation(ADC_11db);
-  pinMode(36, INPUT);
-  
-  // Memory Config
-  M5.Rtc.GetDate(&RTCDate);
-  str = "-" + String(RTCDate.Year) + "-";
-  if(0 <= RTCDate.Month && RTCDate.Month < 10){str += "0";}  
-  str += String(RTCDate.Month) + "-";
-  if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
-  str += String(RTCDate.Date);
-  
-  if (!SD.begin()){  
-    warnings("SDcard failed to mount.");
-    sd_ok = false;
-  }else{
-    warnings("SDcard successfully mounted.");
-    sd_ok = true; i = 0;
-    do{
-      file_name[0] = "/file" + String(i) + str + ".csv";
-      i++;
-    }while(SD.exists(file_name[0])); // este ciclo DO WHILE tem o objetivo de criar um novo ficheiro com continuação
-    file_name[1] = "/file" + String(i-1) + str + "-backup.csv";
-
-    myFile = SD.open(file_name[0], FILE_APPEND);
-    M5.Rtc.GetDate(&RTCDate);
-    M5.Rtc.GetTime(&RTCTime);
-    myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Faults");
-    myFile.close();  
-    myFile = SD.open(file_name[1], FILE_APPEND);
-    M5.Rtc.GetDate(&RTCDate);
-    M5.Rtc.GetTime(&RTCTime);
-    myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
-    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,Coolant,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Faults");
-    myFile.close();  
-  }
-  
-  if(!EEPROM.begin(64)){ // Guarda-se na EEPROM os valores mais importantes e começa-se por inicializar devidamente as variaveis importantes
-    warnings("Failed to initialise EEPROM.");
-    eeprom_ok = false;
-  }else{
-    warnings("Successfully initialise EEPROM.");
-    eeprom_ok = true;
-    Motor_hours = (float) EEPROM.readFloat(addr);
-  }
-
-  prefs.begin("config"); // Biblioteca de preferência, todos os que é necessário guardar em cada dispositivo
-  size_t configLen = prefs.getBytesLength("config");
-  prefs.getBytes("config",(void*) &configy, configLen); // prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy)); 
-  
-  // Buttons & Gestures Config
-  M5.BtnA.addHandler(Scroll, E_TOUCH);
-  M5.BtnB.addHandler(ParamEvent, E_TAP | E_DBLTAP);
-  M5.BtnC.addHandler(ParamEvent, E_TAP | E_DBLTAP);
-  swipeLeft.addHandler(Swiped, E_GESTURE);
-  swipeRight.addHandler(Swiped, E_GESTURE);  
-}
-
 // Função relativa ao menu 0
 void menu_0(){ // nestas funções pouco se trata para além da interface gráfica
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 2);
@@ -305,7 +227,7 @@ void menu_1(){
   M5.Lcd.drawString("Barometer=", 1, 66, 1);
   M5.Lcd.drawString("MAP=", 1, 88, 1);
   M5.Lcd.drawString("MAT=", 1, 110, 1);
-  M5.Lcd.drawString("Coolant=", 1, 132, 1);
+  M5.Lcd.drawString("CHT=", 1, 132, 1);
   M5.Lcd.drawString("Voltage=", 1, 0, 1);
   M5.Lcd.drawString("TPS=", 1, 22, 1);
   M5.Lcd.drawString("Warmup=", 160, 110, 1);
@@ -351,32 +273,92 @@ void down_menu(){
   M5.Lcd.drawString("Menu", 235, 0, 2);
   M5.Lcd.drawString(menu_str[menu], 235, 30, 2); // Inserção de "Menu X" no canto superior do ecrã  
 }
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
-void error_handler(){
-  warning_str = "";
-  if((Temps < configy.CHT_MIN || Temps > configy.CHT_MAX) && temp_ok){
-    //warnings("Failed to read temperature.        ");
-    warning_str += "Tmp ";
-    temp_ok = false;
-  }else if ((Temps > configy.CHT_MIN && Temps < configy.CHT_MAX)){temp_ok = true;}  
+// Função de setup corre uma vez, quando o código é inicializado
+void setup(){
+  M5.begin();
+  M5.Rtc.begin();
 
-  if (data_logging[VOLTAGE] < configy.BATTERY_MIN){
-    //warnings("Low battery.                  ");
-    warning_str += "Battery ";
+  // Random inicialization
+  M5.Lcd.pushImage(0,0,320,240, (uint16_t *) logo_big);
+  delay(4000);
+  M5.Lcd.setTextColor(BLACK, WHITE);
+  M5.Lcd.fillScreen(WHITE);
+  M5.Lcd.setTextWrap(true, true);
+  M5.Lcd.setTextSize(2);
+  for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
+  for(i = 0; i <= BAROCOR; i++){data_logging[i] = 0;}
+
+  // Serial Config
+  Serial.begin(115200);
+  Serial2.begin(115200, SERIAL_8N1, 32 , 33 );
+  Serial2.setTimeout(300);
+  
+  // Servo Config    
+  myServo.setPeriodHertz(50);
+  myServo.attach(26);
+  
+  // ADC Config  
+  analogReadResolution(12);
+  analogSetAttenuation(ADC_11db);
+  pinMode(36, INPUT);
+  
+  // Memory Config
+  M5.Rtc.GetDate(&RTCDate);
+  str = "-" + String(RTCDate.Year) + "-";
+  if(0 <= RTCDate.Month && RTCDate.Month < 10){str += "0";}  
+  str += String(RTCDate.Month) + "-";
+  if(0 <= RTCDate.Date && RTCDate.Date < 10){str += "0";}  
+  str += String(RTCDate.Date);
+  
+  if (!SD.begin()){  
+    warnings("SDcard failed to mount.");
+    sd_ok = false;
+  }else{
+    warnings("SDcard successfully mounted.");
+    sd_ok = true; i = 0;
+    do{
+      file_name[0] = "/file" + String(i) + str + ".csv";
+      i++;
+    }while(SD.exists(file_name[0])); // este ciclo DO WHILE tem o objetivo de criar um novo ficheiro com continuação
+    file_name[1] = "/file" + String(i-1) + str + "-backup.csv";
+
+    myFile = SD.open(file_name[0], FILE_APPEND);
+    M5.Rtc.GetDate(&RTCDate);
+    M5.Rtc.GetTime(&RTCTime);
+    myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,CHT,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Faults");
+    myFile.close();  
+    myFile = SD.open(file_name[1], FILE_APPEND);
+    M5.Rtc.GetDate(&RTCDate);
+    M5.Rtc.GetTime(&RTCTime);
+    myFile.printf("Hour: %2d-%2d-%2d,Date: %4d-%2d-%2d\n",RTCTime.Hours,RTCTime.Minutes,RTCTime.Seconds,RTCDate.Year,RTCDate.Month,RTCDate.Date);
+    myFile.println("ECUSeconds,RPM,Barometer,MAP,MAT,CHT,TPS,Voltage,WarmCor,BaroCorrection,Hours,Minutes,Seconds,Faults");
+    myFile.close();  
+  }
+  
+  if(!EEPROM.begin(64)){ // Guarda-se na EEPROM os valores mais importantes e começa-se por inicializar devidamente as variaveis importantes
+    warnings("Failed to initialise EEPROM.");
+    eeprom_ok = false;
+  }else{
+    warnings("Successfully initialise EEPROM.");
+    eeprom_ok = true;
+    Motor_hours = (float) EEPROM.readFloat(addr);
   }
 
-  if(data_logging[COOLANT] > configy.CHT_MAX){
-    warning_str += "CHT_OVER ";
-    //warnings("Cylinder head overheated.        ");
-  }
-  if(data_logging[COOLANT] < configy.CHT_MIN && data_logging[RPM] > 2500){
-    warning_str += "CHT_UNDER "; 
-    //warnings("Cylinder head underheated.        ");
-  }
-  if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){
-    //warnings("Manifold air Temperature Sensor Fault.           ");
-    warning_str += "MAT ";
-  }
+  prefs.begin("config"); // Biblioteca de preferência, todos os que é necessário guardar em cada dispositivo
+  size_t configLen = prefs.getBytesLength("config");
+  prefs.getBytes("config",(void*) &configy, configLen); // prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy)); 
+  
+  // Buttons & Gestures Config
+  M5.BtnA.addHandler(Scroll, E_TOUCH);
+  M5.BtnB.addHandler(ParamEvent, E_TAP | E_DBLTAP);
+  M5.BtnC.addHandler(ParamEvent, E_TAP | E_DBLTAP);
+  swipeLeft.addHandler(Swiped, E_GESTURE);
+  swipeRight.addHandler(Swiped, E_GESTURE);  
 }
 
 // Esta função fica em loop infinito durante a execução do programa
@@ -402,6 +384,33 @@ void loop() {
       break;                      
     default:
       break;  
+  }
+}
+
+void error_handler(){
+  warning_str = "";
+  if((Temps < configy.CHT_MIN || Temps > configy.CHT_MAX) && temp_ok){
+    //warnings("Failed to read temperature.        ");
+    warning_str += "Tmp ";
+    temp_ok = false;
+  }else if ((Temps > configy.CHT_MIN && Temps < configy.CHT_MAX)){temp_ok = true;}  
+
+  if (data_logging[VOLTAGE] < configy.BATTERY_MIN){
+    //warnings("Low battery.                  ");
+    warning_str += "Battery ";
+  }
+
+  if(data_logging[CHT] > configy.CHT_MAX){
+    warning_str += "CHT_OVER ";
+    //warnings("Cylinder head overheated.        ");
+  }
+  if(data_logging[CHT] < configy.CHT_MIN && data_logging[RPM] > 2500){
+    warning_str += "CHT_UNDER "; 
+    //warnings("Cylinder head underheated.        ");
+  }
+  if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){
+    //warnings("Manifold air Temperature Sensor Fault.           ");
+    warning_str += "MAT ";
   }
 }
 
@@ -524,11 +533,11 @@ void print_telemetry(int aux){
     myFile.printf("%.2f,", data_logging[MAT]);    
   }    
 
-  data_logging[COOLANT] = (float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90);
+  data_logging[CHT] = (float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90);
   if(aux == 0){
-    M5.Lcd.drawString(" Coolant= " + String(data_logging[COOLANT],1) + " C      ", 1, 132, 1);
+    M5.Lcd.drawString(" CHT= " + String(data_logging[CHT],1) + " C      ", 1, 132, 1);
   }else if(aux == 1){
-    myFile.printf("%.2f,", data_logging[COOLANT]);    
+    myFile.printf("%.2f,", data_logging[CHT]);    
   }   
 
   data_logging[TPS] = (float)((float)(Telemetry[24]*256 + Telemetry[25])/10);
@@ -630,6 +639,8 @@ void serial_commands(){
     }
     else if(command == "reset hour"){
       Motor_hours = 0;
+      EEPROM.writeFloat(addr,(float_t) Motor_hours);
+      EEPROM.commit();      
       Serial.println("Flight Hours = " + String(Motor_hours));}
       
     else if(command.substring(0,8) == "set time"){
