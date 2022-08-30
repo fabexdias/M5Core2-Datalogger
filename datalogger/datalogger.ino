@@ -217,7 +217,7 @@ void menu_0(){ // nestas funções pouco se trata para além da interface gráfi
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 2);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 2);
   if((((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381) < 0){str = "0.00";}else{str = String(((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381);}
-  M5.Lcd.drawString(("ADC6: " + str), 0, 80, 2);
+  M5.Lcd.drawString(("Hours: " + String(Motor_hours,2) + "    "), 0, 80, 2);
   battery_voltage = M5.Axp.GetBatteryLevel();
   M5.Lcd.drawString(("Battery: " + String(battery_voltage) + "%    "), 0, 120, 2);
   if(!M5.Axp.isVBUS() && !M5.Axp.isCharging()){M5.Lcd.drawString(String((millis() - Time_bat)/1000,0) + "         ", 1, 154, 1);}else{M5.Lcd.drawString("Supplied             ", 1, 154, 1);}
