@@ -15,9 +15,10 @@
 #define PASSWORD "senha"
 #define MEAN_SIZE 601 // Tamanho do vetor de aquisições
 #define SERIAL_NUMBER "XXXXXXXX" // Numero de série
-#define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
-#define SERIAL_TIMEOUT 60000
-#define DEVICE_TIMEOUT 120000
+
+#define SAMPLE_TIME 1000 // Tempo de amostragem para o PID e Intervalo entre serial 'A'
+#define SERIAL_TIMEOUT 60000 // Tempo de timeout para configuração em monitor de série
+#define DEVICE_TIMEOUT 120000 // Tempo de timeout caso não haja alimentação
 #define MOTOR_TIMEOUT 30000 // Tempo de funcionamento do motor a partir do qual se conta o tempo de vida
 
 // Auxiliares para o vetor data_logging
@@ -70,7 +71,6 @@ float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
 RTC_DateTypeDef RTCDate;
-
 
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------PARTE GRÁFICA----------------------------------------------------------------------------------------*/
@@ -216,9 +216,9 @@ void ParamEvent(Event& e) {
 void menu_0(){ // nestas funções pouco se trata para além da interface gráfica
   M5.Lcd.drawString(("Read temp: " + String(round(Temps*10)/10,1)), 0, 0, 2);
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 2);
-  if((((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381) < 0){str = "0.00";}else{str = String(((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381);}
-  if(Motor_start != 0){str = " ON    ";}else{str = " OFF     ";}
-  M5.Lcd.drawString(("Hours: " + String(Motor_hours,2) + str), 0, 80, 2);
+  //if((((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381) < 0){str = "0.00";}else{str = String(((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381);} // ADC6 - pressão, reta de valores com os pontos (0 bar, 130) e (1.725 bar, 760)
+  if(Motor_start != 0){str = String((Motor_hours + (millis() - Motor_start)/(3600*1000)),2) + " ON    ";}else{str = String(Motor_hours) + " OFF     ";}
+  M5.Lcd.drawString(("Hours: " + str), 0, 80, 2);
   battery_voltage = M5.Axp.GetBatteryLevel();
   M5.Lcd.drawString(("Battery: " + String(battery_voltage) + "%    "), 0, 120, 2);
   if(!M5.Axp.isVBUS() && (!M5.Axp.isCharging() || !M5.Axp.isACIN()) && battery_voltage < 100){M5.Lcd.drawString(String((millis() - Time_bat)/1000,0) + "         ", 1, 154, 1);}else{M5.Lcd.drawString("Supplied             ", 1, 154, 1);}
@@ -306,7 +306,7 @@ void setup(){
   myServo.attach(26);
   
   // ADC Config  
-  M5.Axp.SetBusPowerMode(1);
+  M5.Axp.SetBusPowerMode(1); // Select source for BUS_5V -> 0 : use internal boost | 1 : powered externally
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
   pinMode(36, INPUT);
@@ -391,7 +391,7 @@ void loop() {
       break;  
   }
 
-  if(!M5.Axp.isVBUS() && (!M5.Axp.isCharging() || !M5.Axp.isACIN()) && battery_voltage < 100){
+  if(!M5.Axp.isVBUS() && (!M5.Axp.isCharging() || !M5.Axp.isACIN()) && battery_voltage < 100){ // timeout se não é alimentado por 5V nem por USB-C e a bateria é menor que 100%
       if(Time_bat == 0){Time_bat = millis();}
       if((millis() - Time_bat) > DEVICE_TIMEOUT){M5.shutdown();}
   }else{
