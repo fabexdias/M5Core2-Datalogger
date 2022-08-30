@@ -220,7 +220,7 @@ void menu_0(){ // nestas funções pouco se trata para além da interface gráfi
   M5.Lcd.drawString(("ADC6: " + str), 0, 80, 2);
   battery_voltage = M5.Axp.GetBatteryLevel();
   M5.Lcd.drawString(("Battery: " + String(battery_voltage)), 0, 120, 2);
-  if(!M5.Axp.isVBUS() && !M5.Axp.isCharging()){M5.Lcd.drawString(String((millis() - Time_bat)/1000,0) + "         ", 1, 154, 1);}else{M5.Lcd.drawString("Feeded             ", 1, 154, 1);}
+  if(!M5.Axp.isVBUS() && !M5.Axp.isCharging()){M5.Lcd.drawString(String((millis() - Time_bat)/1000,0) + "         ", 1, 154, 1);}else{M5.Lcd.drawString("Supplied             ", 1, 154, 1);}
 }
 
 // Função relativa ao menu 1
