@@ -17,6 +17,7 @@
 #define SERIAL_NUMBER "XXXXXXXX" // Numero de série
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID
 #define SERIAL_TIMEOUT 60000
+#define DEVICE_TIMEOUT 120000
 #define MOTOR_TIMEOUT 30000 // Tempo de funcionamento do motor a partir do qual se conta o tempo de vida
 
 // Auxiliares para o vetor data_logging
@@ -64,7 +65,7 @@ float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
-float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, Time_motor = 0, battery_voltage = 0;
+float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, Time_motor = 0, Time_bat = 0, battery_voltage = 0;
 float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
@@ -217,8 +218,9 @@ void menu_0(){ // nestas funções pouco se trata para além da interface gráfi
   M5.Lcd.drawString(("Ideal temp: " + String(Tempi)), 0, 40, 2);
   if((((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381) < 0){str = "0.00";}else{str = String(((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381);}
   M5.Lcd.drawString(("ADC6: " + str), 0, 80, 2);
-  battery_voltage = M5.Axp.GetBatVoltage();
+  battery_voltage = M5.Axp.GetBatteryLevel();
   M5.Lcd.drawString(("Battery: " + String(battery_voltage)), 0, 120, 2);
+  if(!M5.Axp.isVBUS() && !M5.Axp.isCharging()){M5.Lcd.drawString(String((millis() - Time_bat)/1000,0) + "         ", 1, 154, 1);}else{M5.Lcd.drawString("Feeded             ", 1, 154, 1);}
 }
 
 // Função relativa ao menu 1
@@ -230,8 +232,9 @@ void menu_1(){
   M5.Lcd.drawString("CHT=", 1, 132, 1);
   M5.Lcd.drawString("Voltage=", 1, 0, 1);
   M5.Lcd.drawString("TPS=", 1, 22, 1);
-  M5.Lcd.drawString("Warmup=", 160, 110, 1);
-  M5.Lcd.drawString("BCorr=", 160, 88, 1);
+  //M5.Lcd.drawString("Warmup=", 160, 110, 1);
+  //M5.Lcd.drawString("BCorr=", 160, 88, 1);
+  M5.Lcd.drawString("Seconds=", 1, 154, 1);  
 }
 
 // Função relativa ao menu 2
@@ -293,15 +296,16 @@ void setup(){
   for(i = 0; i <= BAROCOR; i++){data_logging[i] = 0;}
 
   // Serial Config
-  Serial.begin(115200);
   Serial2.begin(115200, SERIAL_8N1, 32 , 33 );
   Serial2.setTimeout(300);
+  Serial.begin(115200);
   
   // Servo Config    
   myServo.setPeriodHertz(50);
   myServo.attach(26);
   
   // ADC Config  
+  M5.Axp.SetBusPowerMode(1);
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
   pinMode(36, INPUT);
@@ -368,7 +372,7 @@ void loop() {
   timed();
   serial_stuff();
   error_handler();
-  
+
   switch(menu){
     case 0:
       menu_0();
@@ -385,6 +389,13 @@ void loop() {
     default:
       break;  
   }
+
+  if(!M5.Axp.isVBUS() && !M5.Axp.isCharging()){
+      if(Time_bat == 0){Time_bat = millis();}
+      if((millis() - Time_bat) > DEVICE_TIMEOUT){M5.shutdown();}
+  }else{
+    Time_bat = 0;
+  } 
 }
 
 void error_handler(){
@@ -444,9 +455,10 @@ void serial_stuff(){
     Serial.println("Session timed out, login again please.");
     Serial.println("------------------------------------------------------------");
   }
+  
   if(Serial.available()>0){
     serial_commands();
-  } 
+  }
 }
 
 // A função writeSD é executada sempre que se recebe 212 bytes via Serial e guarda apenas as informações de interesse
@@ -500,68 +512,68 @@ void timed(){
 void print_telemetry(int aux){
   data_logging[SECONDS] = (float) (Telemetry[0]*256 + Telemetry[1]);
   if(aux == 0){
-    M5.Lcd.drawString(" Seconds= " + String(data_logging[SECONDS],0) + " s     ", 1, 154, 1);
+    M5.Lcd.drawString("Seconds= " + String(data_logging[SECONDS],0) + " s     ", 1, 154, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[SECONDS]);    
   }
   
   data_logging[RPM] = (float) (Telemetry[6]*256 + Telemetry[7]);
   if(aux == 0){
-    M5.Lcd.drawString(" RPM= " + String(data_logging[RPM],0) + " RPM      ", 1, 44, 1);
+    M5.Lcd.drawString("RPM= " + String(data_logging[RPM],0) + " RPM      ", 1, 44, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[RPM]);    
   }
 
   data_logging[BARO] = (float)((float)(Telemetry[16]*256 + Telemetry[17])/10);
   if(aux == 0){
-    M5.Lcd.drawString(" Barometer= " + String(data_logging[BARO],1) + " kPa      ", 1, 66, 1);
+    M5.Lcd.drawString("Barometer= " + String(data_logging[BARO],1) + " kPa      ", 1, 66, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[BARO]);    
   }
 
   data_logging[MAP] = (float)((float)(Telemetry[18]*256 + Telemetry[19])/10);
   if(aux == 0){
-    M5.Lcd.drawString(" MAP= " + String(data_logging[MAP],1) + " kPa    ", 1, 88, 1);
+    M5.Lcd.drawString("MAP= " + String(data_logging[MAP],1) + " kPa    ", 1, 88, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[MAP]);    
   }  
 
   data_logging[MAT] = (float)((float)(Telemetry[20]*256 + Telemetry[21] -32)*5/90);
   if(aux == 0){
-    M5.Lcd.drawString(" MAT= " + String(data_logging[MAT],1) + " C     ", 1, 110, 1);
+    M5.Lcd.drawString("MAT= " + String(data_logging[MAT],1) + " C     ", 1, 110, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[MAT]);    
   }    
 
   data_logging[CHT] = (float)((float)(Telemetry[22]*256 + Telemetry[23] - 32)*5/90);
   if(aux == 0){
-    M5.Lcd.drawString(" CHT= " + String(data_logging[CHT],1) + " C      ", 1, 132, 1);
+    M5.Lcd.drawString("CHT= " + String(data_logging[CHT],1) + " C      ", 1, 132, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[CHT]);    
   }   
 
   data_logging[TPS] = (float)((float)(Telemetry[24]*256 + Telemetry[25])/10);
   if(aux == 0){
-    M5.Lcd.drawString(" TPS= " + String(data_logging[TPS],1) + " %       ", 1, 22, 1);
+    M5.Lcd.drawString("TPS= " + String(data_logging[TPS],1) + " %       ", 1, 22, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[TPS]);    
   }
 
   data_logging[VOLTAGE] = (float)((float)(Telemetry[26]*256 + Telemetry[27])/10);
   if(aux == 0){
-    M5.Lcd.drawString(" Voltage= " + String(data_logging[VOLTAGE],1) + " V        ", 1, 0, 1);
+    M5.Lcd.drawString("Voltage= " + String(data_logging[VOLTAGE],1) + " V        ", 1, 0, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[VOLTAGE]);    
   } 
   data_logging[WARMCOR] = (float)((float)(Telemetry[40]*256 + Telemetry[41])/10);
   if(aux == 0){
-    M5.Lcd.drawString(" Warmup= " + String(data_logging[WARMCOR],1) + " %        ", 160, 110, 1);
+    //M5.Lcd.drawString("Warmup= " + String(data_logging[WARMCOR],1) + " %        ", 160, 110, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[WARMCOR]);    
   }
   data_logging[BAROCOR] = (float)((float)(Telemetry[46]*256 + Telemetry[47])/10);
   if(aux == 0){
-    M5.Lcd.drawString(" BCorr= " + String(data_logging[BAROCOR],1) + " %        ", 160, 88, 1);
+    //M5.Lcd.drawString("BCorr= " + String(data_logging[BAROCOR],1) + " %        ", 160, 88, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[BAROCOR]);    
   }
@@ -641,85 +653,104 @@ void serial_commands(){
       Motor_hours = 0;
       EEPROM.writeFloat(addr,(float_t) Motor_hours);
       EEPROM.commit();      
-      Serial.println("Flight Hours = " + String(Motor_hours));}
+      Serial.println("Flight Hours = " + String(Motor_hours));
+      }
       
     else if(command.substring(0,8) == "set time"){
       RTCTime.Hours = (command.substring(9,11)).toInt();
       RTCTime.Minutes = (command.substring(12,14)).toInt();
       RTCTime.Seconds = (command.substring(15)).toInt();
       M5.Rtc.SetTime(&RTCTime);
-      Serial.println("Time: " + String(RTCTime.Hours)+":"+String(RTCTime.Minutes)+":"+String(RTCTime.Seconds));}
+      Serial.println("Time: " + String(RTCTime.Hours)+":"+String(RTCTime.Minutes)+":"+String(RTCTime.Seconds));
+      }
       
     else if(command.substring(0,8) == "set date"){
       RTCDate.Year = (command.substring(9,13)).toInt();
       RTCDate.Month = (command.substring(14,16)).toInt();
       RTCDate.Date = (command.substring(16)).toInt();
       M5.Rtc.SetDate(&RTCDate);
-      Serial.println("Date: " + String(RTCDate.Year) + "/" + String(RTCDate.Month) + "/" + String(RTCDate.Date));}
+      Serial.println("Date: " + String(RTCDate.Year) + "/" + String(RTCDate.Month) + "/" + String(RTCDate.Date));
+      }
       
     else if(command.substring(0,11) == "set cht min"){
       configy.CHT_MIN = (command.substring(12)).toFloat();
-      Serial.println("CHT min = " +String(configy.CHT_MIN)+ " C");}
+      Serial.println("CHT min = " +String(configy.CHT_MIN)+ " C");
+      }
       
     else if(command.substring(0,11) == "set cht max"){
       configy.CHT_MAX = (command.substring(12)).toFloat();
-      Serial.println("CHT max = " + String(configy.CHT_MAX)+ " C");}
+      Serial.println("CHT max = " + String(configy.CHT_MAX)+ " C");
+      }
       
     else if(command.substring(0,11) == "set mat min"){
       configy.MAT_MIN = (command.substring(12)).toFloat();
-      Serial.println("MAT min = " + String(configy.MAT_MIN)+ " C");}
+      Serial.println("MAT min = " + String(configy.MAT_MIN)+ " C");
+      }
       
     else if(command.substring(0,11) == "set mat max"){
       configy.MAT_MAX = (command.substring(12)).toFloat();
-      Serial.println("MAT max = " + String(configy.MAT_MAX)+ " C");}
+      Serial.println("MAT max = " + String(configy.MAT_MAX)+ " C");
+      }
 
     else if(command.substring(0,15) == "set battery min"){
       configy.BATTERY_MIN = (command.substring(16)).toFloat();
-      Serial.println("Battery min = " + String(configy.BATTERY_MIN) + " V");}
+      Serial.println("Battery min = " + String(configy.BATTERY_MIN) + " V");
+      }
       
     else if(command.substring(0,15) == "set battery max"){
       configy.BATTERY_MAX = (command.substring(16)).toFloat();
-      Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");}
+      Serial.println("Battery max = " + String(configy.BATTERY_MAX) + " V");
+      }
 
     else if(command.substring(0,11) == "set rpm min"){
       configy.RPM_HOURS = (command.substring(12)).toFloat();
-      Serial.println("RPM min = " + String(configy.RPM_HOURS) + " RPM");}
+      Serial.println("RPM min = " + String(configy.RPM_HOURS) + " RPM");
+      }
       
     else if(command.substring(0,20) == "set idealtemperature"){
       configy.IDEAL_TEMP = (command.substring(21)).toFloat();
-      Serial.println("Idealtemperature  = " + String(configy.IDEAL_TEMP) + " C");}
+      Serial.println("Idealtemperature  = " + String(configy.IDEAL_TEMP) + " C");
+      }
 
     else if(command.substring(0,20) == "set fuelpressure min"){
       configy.FUEL_PRESSURE_MIN = (command.substring(21)).toFloat();
-      Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN) + " bar");}
+      Serial.println("Fuelpressure min = " + String(configy.FUEL_PRESSURE_MIN) + " bar");
+      }
       
     else if(command.substring(0,20) == "set fuelpressure max"){
       configy.FUEL_PRESSURE_MAX = (command.substring(21)).toFloat();
-      Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX) + " bar");}
+      Serial.println("Fuelpressure max = " + String(configy.FUEL_PRESSURE_MAX) + " bar");
+      }
 
     else if(command.substring(0,14) == "set k_p servo1"){
       configy.K_P[0] = (command.substring(15)).toFloat();
-      Serial.println("k_p (servo 1) = " + String(configy.K_P[0]));}
+      Serial.println("k_p (servo 1) = " + String(configy.K_P[0]));
+      }
 
     else if(command.substring(0,14) == "set k_i servo1"){
       configy.K_I[0] = (command.substring(15)).toFloat();
-      Serial.println("k_i (servo 1) = " + String(configy.K_I[0]));}
+      Serial.println("k_i (servo 1) = " + String(configy.K_I[0]));
+      }
 
     else if(command.substring(0,14) == "set k_d servo1"){
       configy.K_D[0] = (command.substring(15)).toFloat();
-      Serial.println("k_d (servo 1) = " + String(configy.K_D[0]));}
+      Serial.println("k_d (servo 1) = " + String(configy.K_D[0]));
+      }
       
     else if(command.substring(0,14) == "set k_p servo2"){
       configy.K_P[1] = (command.substring(15)).toFloat();
-      Serial.println("k_p (servo 2) = " + String(configy.K_P[1]));}
+      Serial.println("k_p (servo 2) = " + String(configy.K_P[1]));
+      }
       
     else if(command.substring(0,14) == "set k_i servo2"){
       configy.K_I[1] = (command.substring(15)).toFloat();
-      Serial.println("k_i (servo 2) = " + String(configy.K_I[1]));}
+      Serial.println("k_i (servo 2) = " + String(configy.K_I[1]));
+      }
       
     else if(command.substring(0,14) == "set k_d servo2"){
       configy.K_D[1] = (command.substring(15)).toFloat();
-      Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));}
+      Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));
+      }
     else if(command.substring(0,14) == "see parameters"){
       Serial.println("---------------------------------------------------------------------------------------------");
       Serial.println("CHT min = " +String(configy.CHT_MIN)+ " C");
@@ -758,10 +789,12 @@ void serial_commands(){
       Serial.println("k_p (servo 2) = " + String(configy.K_P[1]));
       Serial.println("k_i (servo 2) = " + String(configy.K_I[1]));
       Serial.println("k_d (servo 2) = " + String(configy.K_D[1]));  
-      Serial.println("Configuration saved.");}
+      Serial.println("Configuration saved.");
+      }
      
     else if (command == PASSWORD){}
     else {
-      Serial.println("Wrong command.");}         
+      Serial.println("Wrong command.");
+      }         
   }
 }
