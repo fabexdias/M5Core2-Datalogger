@@ -18,6 +18,7 @@
 #define SERIAL_NUMBER "XXXXX" // Numero de série
 #define MENU_NUMBER 1 // Numero de menus
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID e Intervalo entre serial 'A'
+#define ERROR_TIMEOUT 60000 // Tempo de timeout para erros
 #define SAMPLE_TIMEOUT 3000 // Tempo de timeout para receção dos dados
 #define SERIAL_TIMEOUT 60000 // Tempo de timeout para configuração em monitor de série
 #define DEVICE_TIMEOUT 120000 // Tempo de timeout caso não haja alimentação
@@ -127,6 +128,14 @@ static const uint8_t bat_1[784] =
     0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 
+typedef struct {
+  int tipo; // error_handler
+  int time_stamp;
+  String texto;
+} warnings;
+
+warnings w_struct[8];
+
 byte Telemetry[212];
 String str, file_name[2], warning_str = "";
 bool eeprom_ok = false, sd_ok = false, motor_ok = false, serial_ok = true, menu0_ok = true, password = false, data_ok[6] = {true, true, true, true, true, true};
@@ -138,7 +147,7 @@ float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
-float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, Time_motor = 0, Time_bat = 0, Time_rx = 0, battery = 0;
+float Time_now = 0, Time_prev = 0, Time_serial = 0, Time_motor = 0, Time_bat = 0, Time_rx = 0, Time_error = 0, battery = 0;
 float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
@@ -210,6 +219,24 @@ void menu_0(){
 // Função relativa ao menu 1
 void menu_1(){ // nestas funções pouco se trata para além da interface gráfica
   menu0_ok = true;
+  M5.Lcd.drawString(w_struct[0].texto, 1, 31, 1);
+  M5.Lcd.drawString(w_struct[1].texto, 1, 52, 1);
+  M5.Lcd.drawString(w_struct[2].texto, 1, 73, 1);
+  M5.Lcd.drawString(w_struct[3].texto, 1, 94, 1);
+  M5.Lcd.drawString(w_struct[4].texto, 1, 115, 1);
+  M5.Lcd.drawString(w_struct[5].texto, 1, 136, 1);
+  M5.Lcd.drawString(w_struct[6].texto, 1, 157, 1);
+  M5.Lcd.drawString(w_struct[7].texto, 1, 178, 1);
+  M5.Lcd.drawFastHLine(0, 196, 320, NAVY); 
+  M5.Lcd.setTextSize(1); M5.Lcd.setTextDatum(TC_DATUM); M5.Lcd.drawString("ERROR LOG", 160, 197, 2); M5.Lcd.setTextDatum(TL_DATUM); M5.Lcd.setTextSize(2);
+  /*M5.Lcd.drawString("t", 1, 31, 1);
+  M5.Lcd.drawString("t", 1, 54, 1);
+  M5.Lcd.drawString("t", 1, 77, 1);
+  M5.Lcd.drawString("t", 1, 100, 1);
+  M5.Lcd.drawString("t", 1, 123, 1);
+  M5.Lcd.drawString("t", 1, 146, 1);
+  M5.Lcd.drawString("t", 1, 169, 1);
+  M5.Lcd.drawString("t", 1, 192, 1);*/
 }
 
 void header(){
@@ -255,6 +282,7 @@ void setup(){
   M5.Lcd.setTextSize(1);
   for(i = 0; i < MEAN_SIZE; i++){Temp_array[i] = 0;}
   for(i = 0; i <= BAROCOR; i++){data_logging[i] = 0;}
+  for(i = 0; i < 8; i++){w_struct[i].tipo = 0; w_struct[i].texto = "";}  
   delay(1000);
   
   // Serial Config
@@ -314,10 +342,15 @@ void setup(){
     eeprom_ok = true;
     Motor_hours = (int64_t) EEPROM.readLong64(addr);
   }
-
-  prefs.begin("config"); // Biblioteca de preferência, todos os que é necessário guardar em cada dispositivo
-  size_t configLen = prefs.getBytesLength("config");
-  prefs.getBytes("config",(void*) &configy, configLen); // prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy)); 
+  delay(1000);
+  
+  if(prefs.begin("config")){ // Biblioteca de preferência, todos os que é necessário guardar em cada dispositivo
+    size_t configLen = prefs.getBytesLength("config");
+    prefs.getBytes("config",(void*) &configy, configLen); // prefs.putBytes("config",(void*) &configy,(size_t) sizeof(configy));  
+    M5.Lcd.drawString("Successfully initialise the config.", 160, 210, 2); //warnings("Successfully initialise EEPROM.");   
+  }else{
+    M5.Lcd.drawString("Failed to initialise config.", 160, 210, 2); // warnings("Failed to initialise EEPROM.");     
+  }
   
   // Buttons & Gestures Config
   M5.BtnA.addHandler(Swiped, E_TOUCH);
@@ -363,26 +396,60 @@ void loop() {
 
 void error_handler(){
   warning_str = "";
+  M5.Rtc.GetDate(&RTCDate);
+  str = String(RTCDate.Year) + "-";
+  if(RTCDate.Month < 10){str += "0";}  
+  str += String(RTCDate.Month) + "-";
+  if(RTCDate.Date < 10){str += "0";}  
+  str += String(RTCDate.Date) + " ";  
+  M5.Rtc.GetTime(&RTCTime);  
+  if(RTCTime.Hours < 10){str += "0";}    
+  str += String(RTCTime.Hours) + ":";
+  if(RTCTime.Minutes < 10){str += "0";}  
+  str += String(RTCTime.Minutes) + ":";
+  if(RTCTime.Seconds < 10){str += "0";}  
+  str += String(RTCTime.Seconds);
+  
   /*if((Temps < configy.CHT_MIN || Temps > configy.CHT_MAX) && temp_ok){
     //warnings("Failed to read temperature.        ");
     warning_str += "Tmp ";
     temp_ok = false;
   }else if ((Temps > configy.CHT_MIN && Temps < configy.CHT_MAX)){temp_ok = true;}*/
-  if (data_logging[VOLTAGE] < configy.BATTERY_MIN || data_logging[VOLTAGE] > configy.BATTERY_MAX){
+  if (data_logging[VOLTAGE] < configy.BATTERY_MIN || data_logging[VOLTAGE] > configy.BATTERY_MAX){ // type = 1;
     data_ok[2] = false;
     warning_str += "Battery ";
+    insert_error(1, millis(), "BATTERY - " + str);
   }else{data_ok[2] = true;}  
-  if(data_logging[CHT] > configy.CHT_MAX){
+  if(data_logging[CHT] > configy.CHT_MAX){ // type = 2;
     data_ok[5] = false;
     warning_str += "CHT_OVER ";
-  }else if(data_logging[CHT] < configy.CHT_MIN && data_logging[RPM] > 2500){
+    insert_error(2, millis(), "CHT_OVER - " + str);
+  }else if(data_logging[CHT] < configy.CHT_MIN && data_logging[RPM] > 2500){ // type = 3;
     data_ok[5] = false;
     warning_str += "CHT_UNDER ";
+    insert_error(3, millis(), "CHT_UNDER - " + str);    
   }{data_ok[5] = true;}
-  if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){
+  if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){ // type = 4;
     data_ok[4] = false;
     warning_str += "MAT ";
+    insert_error(4, millis(), "MAT - " + str);        
   }{data_ok[4] = true;}
+}
+
+void insert_error(int tipo, int time_stamp, String texto){
+  bool printing = true;
+  for(i = 0; i < 8; i++){ if(w_struct[i].tipo == tipo && (time_stamp - w_struct[i].time_stamp) < ERROR_TIMEOUT) printing = false;}
+
+  if(printing == true){
+    for(i = 0; i < 7; i++){
+      w_struct[i+1].tipo = w_struct[i].tipo;
+      w_struct[i+1].time_stamp = w_struct[i].time_stamp;
+      w_struct[i+1].texto = w_struct[i].texto;
+    }
+    w_struct[0].tipo = tipo;
+    w_struct[0].time_stamp = time_stamp;
+    w_struct[0].texto = texto;
+  }
 }
 
 void serial_stuff(){
@@ -400,7 +467,7 @@ void serial_stuff(){
         Motor_start = 0;
       }else if(motor_ok && (millis() - Time_motor > MOTOR_TIMEOUT) && Motor_start == 0){
         Motor_start = millis();
-      }else if(motor_ok && data_logging[RPM] <= configy.RPM_HOURS){
+      }else if(motor_ok && data_logging[RPM] <= configy.RPM_HOURS  && Motor_start != 0){
         motor_ok = false;
         if((millis() - Motor_start) > MOTOR_TIMEOUT){
           Motor_hours += (millis() - Motor_start)/1000;
@@ -489,7 +556,7 @@ void print_telemetry(int aux){
   
   data_logging[RPM] = (float) (Telemetry[6]*256 + Telemetry[7]);
   if(aux == 0){ 
-    M5.Lcd.drawString("RPM: " + String(data_logging[RPM],0) + " RPM      ", 1, 120, 1);
+    M5.Lcd.drawString("RPM: " + String(data_logging[RPM],0) + " RPM    ", 1, 120, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[RPM]);    
   }
@@ -503,35 +570,35 @@ void print_telemetry(int aux){
 
   data_logging[MAP] = (float)((float)(Telemetry[18]*256 + Telemetry[19])/10);
   if(aux == 0){
-    //M5.Lcd.drawString("MAP: " + String(data_logging[MAP],1) + " kPa    ", 1, 88, 1);
+    //M5.Lcd.drawString("MAP: " + String(data_logging[MAP],1) + " kPa   ", 1, 88, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[MAP]);    
   }  
 
   data_logging[MAT] = (float)(((float)(Telemetry[20]*256 + Telemetry[21])/10 - 32)*5/9);
   if(aux == 0){
-    M5.Lcd.drawString("IAT: " + String(data_logging[MAT],1) + " °C     ", 1, 142, 1);
+    M5.Lcd.drawString("IAT: " + String(data_logging[MAT],1) + " C   ", 1, 142, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[MAT]);    
   }    
 
   data_logging[CHT] = (float)(((float)(Telemetry[22]*256 + Telemetry[23])/10 - 32)*5/9);
   if(aux == 0){
-    M5.Lcd.drawString("CHT: " + String(data_logging[CHT],1) + " °C      ", 1, 164, 1);
+    M5.Lcd.drawString("CHT: " + String(data_logging[CHT],1) + " C   ", 1, 164, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[CHT]);    
   }   
 
   data_logging[TPS] = (float)((float)(Telemetry[24]*256 + Telemetry[25])/10);
   if(aux == 0){
-    M5.Lcd.drawString("Throttle : " + String(data_logging[TPS],1) + " %       ", 1, 75, 1);
+    M5.Lcd.drawString("Throttle : " + String(data_logging[TPS],1) + " %  ", 1, 75, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[TPS]);    
   }
 
   data_logging[VOLTAGE] = (float)((float)(Telemetry[26]*256 + Telemetry[27])/10);
   if(aux == 0){
-    M5.Lcd.drawString("Voltage  : " + String(data_logging[VOLTAGE],1) + " V        ", 1, 97, 1);
+    M5.Lcd.drawString("Voltage  : " + String(data_logging[VOLTAGE],1) + " V   ", 1, 97, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[VOLTAGE]);    
   } 
@@ -925,4 +992,11 @@ void serial_commands(){
     default:
       break;
   }
+}*/
+/*
+void warnings(String aux){
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.drawString(aux, 0, 225 - select_pos * 20, 2);
+  if(--select_pos == -1) select_pos = 2; 
+  M5.Lcd.setTextSize(2);
 }*/
