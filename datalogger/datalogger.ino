@@ -18,6 +18,7 @@
 #define SERIAL_NUMBER "XXXXX" // Numero de série
 #define MENU_NUMBER 1 // Numero de menus
 #define SAMPLE_TIME 1000 // Tempo de amostragem para o PID e Intervalo entre serial 'A'
+#define SAMPLE_TIMEOUT 3000 // Tempo de timeout para receção dos dados
 #define SERIAL_TIMEOUT 60000 // Tempo de timeout para configuração em monitor de série
 #define DEVICE_TIMEOUT 120000 // Tempo de timeout caso não haja alimentação
 #define MOTOR_TIMEOUT 30000 // Tempo de funcionamento do motor a partir do qual se conta o tempo de vida
@@ -128,7 +129,7 @@ static const uint8_t bat_1[784] =
 
 byte Telemetry[212];
 String str, file_name[2], warning_str = "";
-bool eeprom_ok = false, sd_ok = false, motor_ok = false, serial_ok = true, menu0_ok = true, password = false;
+bool eeprom_ok = false, sd_ok = false, motor_ok = false, serial_ok = true, menu0_ok = true, password = false, data_ok[6] = {true, true, true, true, true, true};
 int i = 0, j = 0, addr = 0;
 int menu = 0;
 
@@ -137,7 +138,7 @@ float Temp_array[MEAN_SIZE];
 float Temps = 0, Tempi = 30;
 float PID_p = 0, PID_i = 0, PID_d = 0, PID_value = 0, PID_error = 0, PREV_error = 0;
 float K_p = 1.1, K_i = 0.5, K_d = 0.175;
-float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, Time_motor = 0, Time_bat = 0, battery = 0;
+float Time_now = 0, Time_prev = 0, Time = 0, Time_serial = 0, Time_motor = 0, Time_bat = 0, Time_rx = 0, battery = 0;
 float data_logging[10];
 
 RTC_TimeTypeDef RTCTime;
@@ -168,21 +169,26 @@ void Swiped(Event& e){
 
 // Função relativa ao menu 0
 void menu_0(){
-  if(Motor_start != 0){str = SecondsToString(Motor_hours + (millis() - Motor_start)/1000);}else{str = SecondsToString(Motor_hours);}
   if(menu0_ok){
-    M5.Lcd.fillCircle(300, 37, 7, BLACK);
     menu0_ok = false;
+    M5.Lcd.fillCircle(300, 37, 7, BLACK);
+    M5.Lcd.fillCircle(300, 60, 7, BLACK);
+    M5.Lcd.fillCircle(300, 82, 7, BLACK);
+    M5.Lcd.fillCircle(300, 104, 7, BLACK);
+    M5.Lcd.fillCircle(300, 127, 7, BLACK);
+    M5.Lcd.fillCircle(300, 149, 7, BLACK);
+    M5.Lcd.fillCircle(300, 171, 7, BLACK);    
   }
-
+  if(Motor_start != 0){str = SecondsToString(Motor_hours + (millis() - Motor_start)/1000); M5.Lcd.fillCircle(300, 37, 5, GREEN);}else{str = SecondsToString(Motor_hours); M5.Lcd.fillCircle(300, 37, 5, RED);}
   
-  M5.Lcd.drawString("Work Time: " + str, 1, 31, 1); M5.Lcd.fillCircle(300, 37, 6, RED);
-  M5.Lcd.drawString("ECU Time :", 1, 53, 1);
-  M5.Lcd.drawString("Throttle :", 1, 75, 1);
-  M5.Lcd.drawString("Voltage  :", 1, 97, 1);
-  M5.Lcd.drawFastHLine(0, 115, 320, NAVY);
-  M5.Lcd.drawString("RPM:", 1, 120, 1);
-  M5.Lcd.drawString("IAT:", 1, 142, 1);
-  M5.Lcd.drawString("CHT:", 1, 164, 1);
+  M5.Lcd.drawString("Work Time: " + str, 1, 31, 1);
+  M5.Lcd.drawString("ECU Time :", 1, 53, 1); if(bytesRecieved == 212){M5.Lcd.fillCircle(300, 60, 5, GREEN);}else if(millis() - Time_rx > SAMPLE_TIMEOUT){M5.Lcd.fillCircle(300, 60, 5, LIGHTGREY);}
+  M5.Lcd.drawString("Throttle :", 1, 75, 1); if(bytesRecieved == 212){M5.Lcd.fillCircle(300, 82, 5, GREEN);}else if(millis() - Time_rx > SAMPLE_TIMEOUT){ M5.Lcd.fillCircle(300, 82, 5, LIGHTGREY);}
+  M5.Lcd.drawString("Voltage  :", 1, 97, 1); if(bytesRecieved == 212){if(data_ok[2] == true){M5.Lcd.fillCircle(300, 104, 5, GREEN);}else{M5.Lcd.fillCircle(300, 104, 5, RED);}}else if(millis() - Time_rx > SAMPLE_TIMEOUT){ M5.Lcd.fillCircle(300, 104, 5, LIGHTGREY);}
+  M5.Lcd.drawFastHLine(0, 115, 320, NAVY); 
+  M5.Lcd.drawString("RPM:", 1, 120, 1); if(bytesRecieved == 212){M5.Lcd.fillCircle(300, 127, 5, GREEN);}else if(millis() - Time_rx > SAMPLE_TIMEOUT){ M5.Lcd.fillCircle(300, 127, 5, LIGHTGREY);}
+  M5.Lcd.drawString("IAT:", 1, 142, 1); if(bytesRecieved == 212){if(data_ok[4] == true){M5.Lcd.fillCircle(300, 149, 5, GREEN);}else{M5.Lcd.fillCircle(300, 149, 5, RED);}}else if(millis() - Time_rx > SAMPLE_TIMEOUT){ M5.Lcd.fillCircle(300, 149, 5, LIGHTGREY);}
+  M5.Lcd.drawString("CHT:", 1, 164, 1); if(bytesRecieved == 212){if(data_ok[5] == true){M5.Lcd.fillCircle(300, 171, 5, GREEN);}else{M5.Lcd.fillCircle(300, 171, 5, RED);}}else if(millis() - Time_rx > SAMPLE_TIMEOUT){ M5.Lcd.fillCircle(300, 171, 5, LIGHTGREY);}
   M5.Lcd.drawFastHLine(0, 182, 320, NAVY);
 
   M5.Rtc.GetDate(&RTCDate);
@@ -334,7 +340,7 @@ void loop() {
   header();
   timed();
   serial_stuff();
-  error_handler();
+  if(bytesRecieved == 212){error_handler();}
 
   switch(menu){
     case 0:
@@ -363,26 +369,31 @@ void error_handler(){
     temp_ok = false;
   }else if ((Temps > configy.CHT_MIN && Temps < configy.CHT_MAX)){temp_ok = true;}*/
   if (data_logging[VOLTAGE] < configy.BATTERY_MIN || data_logging[VOLTAGE] > configy.BATTERY_MAX){
+    data_ok[2] = false;
     warning_str += "Battery ";
-  }
+  }else{data_ok[2] = true;}  
   if(data_logging[CHT] > configy.CHT_MAX){
+    data_ok[5] = false;
     warning_str += "CHT_OVER ";
-  }
-  if(data_logging[CHT] < configy.CHT_MIN && data_logging[RPM] > 2500){
+  }else if(data_logging[CHT] < configy.CHT_MIN && data_logging[RPM] > 2500){
+    data_ok[5] = false;
     warning_str += "CHT_UNDER ";
-  }
+  }{data_ok[5] = true;}
   if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){
+    data_ok[4] = false;
     warning_str += "MAT ";
-  }
+  }{data_ok[4] = true;}
 }
 
 void serial_stuff(){
+  bytesRecieved = 0;
   if(Serial2.available() > 0){               
     bytesRecieved = Serial2.readBytes(Telemetry,212);
     if(bytesRecieved == 212){
+      Time_rx = millis();
       writeSD();
       warning_str = "";
-      if(menu == 1){print_telemetry(0);}
+      if(menu == 0){print_telemetry(0);}
       if((data_logging[RPM] > configy.RPM_HOURS) && !motor_ok){
         motor_ok = true;
         Time_motor = millis();
@@ -471,7 +482,7 @@ void print_telemetry(int aux){
   //if((((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381) < 0){str = "0.00";}else{str = String(((float) Telemetry[128]*256 + Telemetry[129])*0.002738095-0.355952381);} // ADC6 - pressão, reta de valores com os pontos (0 bar, 130) e (1.725 bar, 760)
   data_logging[SECONDS] = (float) (Telemetry[0]*256 + Telemetry[1]);
   if(aux == 0){
-    M5.Lcd.drawString("ECU Time : " + String(data_logging[SECONDS],0) + " s     ", 1, 53, 1);
+    M5.Lcd.drawString("ECU Time : " + SecondsToString((int) data_logging[SECONDS]), 1, 53, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[SECONDS]);    
   }
@@ -499,14 +510,14 @@ void print_telemetry(int aux){
 
   data_logging[MAT] = (float)(((float)(Telemetry[20]*256 + Telemetry[21])/10 - 32)*5/9);
   if(aux == 0){
-    M5.Lcd.drawString("IAT: " + String(data_logging[MAT],1) + " C     ", 1, 142, 1);
+    M5.Lcd.drawString("IAT: " + String(data_logging[MAT],1) + " °C     ", 1, 142, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[MAT]);    
   }    
 
   data_logging[CHT] = (float)(((float)(Telemetry[22]*256 + Telemetry[23])/10 - 32)*5/9);
   if(aux == 0){
-    M5.Lcd.drawString("CHT: " + String(data_logging[CHT],1) + " C      ", 1, 164, 1);
+    M5.Lcd.drawString("CHT: " + String(data_logging[CHT],1) + " °C      ", 1, 164, 1);
   }else if(aux == 1){
     myFile.printf("%.2f,", data_logging[CHT]);    
   }   
