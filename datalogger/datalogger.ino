@@ -171,7 +171,7 @@ void Swiped(Event& e){
   }else if(e.button != NULL){
     if(String(e.button->getName()) == "BtnA"){if(--menu < 0){menu = MENU_NUMBER;}}
     else if(String(e.button->getName()) == "BtnC"){if(++menu > MENU_NUMBER){menu = 0;}}
-    else if(String(e.button->getName()) == "BtnB"){menu = 0;}
+    else if(String(e.button->getName()) == "BtnB"){menu0_ok = true; menu = 0;}
     M5.Lcd.fillRect(0, 27, 320, 186, WHITE);
   }
 }
@@ -227,16 +227,9 @@ void menu_1(){ // nestas funções pouco se trata para além da interface gráfi
   M5.Lcd.drawString(w_struct[5].texto, 1, 136, 1);
   M5.Lcd.drawString(w_struct[6].texto, 1, 157, 1);
   M5.Lcd.drawString(w_struct[7].texto, 1, 178, 1);
+
   M5.Lcd.drawFastHLine(0, 196, 320, NAVY); 
-  M5.Lcd.setTextSize(1); M5.Lcd.setTextDatum(TC_DATUM); M5.Lcd.drawString("ERROR LOG", 160, 197, 2); M5.Lcd.setTextDatum(TL_DATUM); M5.Lcd.setTextSize(2);
-  /*M5.Lcd.drawString("t", 1, 31, 1);
-  M5.Lcd.drawString("t", 1, 54, 1);
-  M5.Lcd.drawString("t", 1, 77, 1);
-  M5.Lcd.drawString("t", 1, 100, 1);
-  M5.Lcd.drawString("t", 1, 123, 1);
-  M5.Lcd.drawString("t", 1, 146, 1);
-  M5.Lcd.drawString("t", 1, 169, 1);
-  M5.Lcd.drawString("t", 1, 192, 1);*/
+  M5.Lcd.setTextSize(1); M5.Lcd.setTextDatum(TC_DATUM); M5.Lcd.drawString("LAST 8 ERROR LOG", 160, 197, 2); M5.Lcd.setTextDatum(TL_DATUM); M5.Lcd.setTextSize(2);
 }
 
 void header(){
@@ -418,33 +411,41 @@ void error_handler(){
   if (data_logging[VOLTAGE] < configy.BATTERY_MIN || data_logging[VOLTAGE] > configy.BATTERY_MAX){ // type = 1;
     data_ok[2] = false;
     warning_str += "Battery ";
-    insert_error(1, millis(), "BATTERY - " + str);
+    insert_error(1, millis(), "BAT  @ " + str);
   }else{data_ok[2] = true;}  
   if(data_logging[CHT] > configy.CHT_MAX){ // type = 2;
     data_ok[5] = false;
     warning_str += "CHT_OVER ";
-    insert_error(2, millis(), "CHT_OVER - " + str);
+    insert_error(2, millis(), "CHT+ @ " + str);
   }else if(data_logging[CHT] < configy.CHT_MIN && data_logging[RPM] > 2500){ // type = 3;
     data_ok[5] = false;
     warning_str += "CHT_UNDER ";
-    insert_error(3, millis(), "CHT_UNDER - " + str);    
-  }{data_ok[5] = true;}
+    insert_error(3, millis(), "CHT- @ " + str);    
+  }else{data_ok[5] = true;}
   if(data_logging[MAT] < configy.MAT_MIN || data_logging[MAT] > configy.MAT_MAX){ // type = 4;
     data_ok[4] = false;
     warning_str += "MAT ";
-    insert_error(4, millis(), "MAT - " + str);        
-  }{data_ok[4] = true;}
+    insert_error(4, millis(), "IAT  @ " + str);        
+  }else{data_ok[4] = true;}
 }
 
 void insert_error(int tipo, int time_stamp, String texto){
   bool printing = true;
-  for(i = 0; i < 8; i++){ if(w_struct[i].tipo == tipo && (time_stamp - w_struct[i].time_stamp) < ERROR_TIMEOUT) printing = false;}
+
+  for(i = 0; i < 8; i++){
+    if(w_struct[i].tipo == tipo){
+      printing = false;
+      if((time_stamp - w_struct[i].time_stamp) > ERROR_TIMEOUT){
+        printing = true;
+      }
+    }
+  }
 
   if(printing == true){
-    for(i = 0; i < 7; i++){
-      w_struct[i+1].tipo = w_struct[i].tipo;
-      w_struct[i+1].time_stamp = w_struct[i].time_stamp;
-      w_struct[i+1].texto = w_struct[i].texto;
+    for(i = 7; i > 0; i--){
+      w_struct[i].tipo = w_struct[i-1].tipo;
+      w_struct[i].time_stamp = w_struct[i-1].time_stamp;
+      w_struct[i].texto = w_struct[i-1].texto;
     }
     w_struct[0].tipo = tipo;
     w_struct[0].time_stamp = time_stamp;
@@ -518,7 +519,7 @@ void timed(){
 
   if((millis() - Time_prev) > SAMPLE_TIME){
     Serial2.write('A'); // Isto serve para requesitar dados à centralina 
-    
+
     Temps = median_temp(); // Leitura da temperatura com filtro de mediana
     
     PID_error = Tempi - Temps; // Isto é o controlador PID para o servo
